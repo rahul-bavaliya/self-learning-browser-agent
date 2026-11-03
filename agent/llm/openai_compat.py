@@ -25,12 +25,15 @@ from agent.llm.base import (
     LLMError,
     LLMRequest,
     LLMResponse,
+    LLMTimeoutError,
+    LLMTransientError,
     cost_usd,
 )
 
 NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 ToolChoice = Literal["named", "required", "auto"]
 _RETRY_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
+MAX_RETRY_AFTER_S = 30.0  # never sleep longer than this on a Retry-After header
 
 
 class OpenAICompatClient:
@@ -75,10 +78,13 @@ class OpenAICompatClient:
         self._price_in = price_in_per_mtok
         self._price_out = price_out_per_mtok
         self._max_retries = max_retries
+        # Short connect timeout: an unreachable host should fail fast, a slow model not.
+        self._timeout = httpx.Timeout(timeout_s, connect=min(10.0, timeout_s))
+        self._timeout_s = timeout_s
         headers = {"Accept": "application/json"}
         if key:
             headers["Authorization"] = f"Bearer {key}"
-        self._http = http_client or httpx.AsyncClient(timeout=timeout_s)
+        self._http = http_client or httpx.AsyncClient(timeout=self._timeout)
         self._headers = headers
 
     def __repr__(self) -> str:
@@ -149,13 +155,28 @@ class OpenAICompatClient:
         )
 
     async def _post(self, body: dict[str, Any]) -> dict[str, Any]:
-        """POST with retries on transient failures (429, 5xx, network errors)."""
+        """POST with retries on transient failures.
+
+        Raises:
+            LLMTimeoutError: Every attempt timed out.
+            LLMTransientError: 429 / 5xx / network errors persisted after retries.
+            LLMError: A permanent error (bad request, auth, unknown or retired model).
+
+        """
+        attempts = self._max_retries + 1
         last = ""
-        for attempt in range(self._max_retries + 1):
+        timeouts = 0
+        for attempt in range(attempts):
+            wait = min(2.0**attempt, 8.0)
             try:
-                resp = await self._http.post(self._url, json=body, headers=self._headers)
+                resp = await self._http.post(
+                    self._url, json=body, headers=self._headers, timeout=self._timeout
+                )
+            except httpx.TimeoutException as exc:
+                timeouts += 1
+                last = f"no answer within {self._timeout_s:.0f}s ({type(exc).__name__})"
             except httpx.HTTPError as exc:
-                last = f"{type(exc).__name__}"
+                last = f"network error ({type(exc).__name__})"
             else:
                 if resp.status_code < 400:
                     try:
@@ -165,10 +186,25 @@ class OpenAICompatClient:
                     return parsed
                 last = f"HTTP {resp.status_code}: {_error_message(resp)}"
                 if resp.status_code not in _RETRY_STATUS:
-                    break
-            if attempt < self._max_retries:
-                await asyncio.sleep(min(2**attempt, 8))
-        raise LLMError(f"{self._label} API error: {last}"[:500])
+                    raise LLMError(f"{self._label} API error: {last}"[:500])
+                wait = _retry_after(resp) or wait
+            if attempt < attempts - 1:
+                await asyncio.sleep(wait)
+
+        tries = f"{attempts} attempt{'s' if attempts > 1 else ''}"
+        if timeouts == attempts:
+            raise LLMTimeoutError(f"{self._label} API timeout: {last}, {tries}"[:500])
+        raise LLMTransientError(f"{self._label} API error: {last} after {tries}"[:500])
+
+
+def _retry_after(resp: httpx.Response) -> float | None:
+    """Seconds from a Retry-After header (numeric form only), capped."""
+    value = resp.headers.get("retry-after", "").strip()
+    try:
+        seconds = float(value)
+    except ValueError:
+        return None
+    return max(0.0, min(seconds, MAX_RETRY_AFTER_S))
 
 
 def chat_completions_url(base_url: str) -> str:

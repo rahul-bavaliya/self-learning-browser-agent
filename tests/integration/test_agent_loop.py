@@ -6,9 +6,11 @@ SLBA_REQUIRE_ALL_BROWSERS=1); missing Postgres skips (unless SLBA_REQUIRE_DB=1).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent.config import Settings
-from agent.llm import FakeLLM, LLMError, LLMRequest, LLMResponse
+from agent.llm import FakeLLM, LLMError, LLMRequest, LLMResponse, LLMTimeoutError
 from agent.loop import RunReport, run_agent
 from provenance.ledger import Ledger
 from provenance.models import Evidence, EvidenceKind, ItemStatus, Run, RunOutcome, Step, StepResult
@@ -315,3 +317,63 @@ async def test_retracting_a_run_flags_its_confirmation_evidence(
     statuses = {i.status for i in await Ledger(session).run_items(rep.run_id)}
     assert statuses == {ItemStatus.RETRACTED, ItemStatus.FLAGGED}
     assert len(result.flagged) == len(await Ledger(session).run_items(rep.run_id)) - 1
+
+
+class _FlakyLLM(FakeLLM):
+    """Times out ``fail_times`` times, then behaves like the scripted fake."""
+
+    def __init__(self, fail_times: int, script: Any) -> None:
+        super().__init__(script)
+        self.fail_times = fail_times
+        self.calls = 0
+
+    async def decide(self, request: LLMRequest) -> LLMResponse:
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise LLMTimeoutError("NIM API timeout: no answer within 60s (ReadTimeout), 3 attempts")
+        return await super().decide(request)
+
+
+async def test_transient_llm_timeouts_are_retried_and_the_run_recovers(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    llm = _FlakyLLM(2, [{"type": "finish", "success": True, "answer": "ok"}])
+    rep = await go(session, cfg, f"{local_site}/form.html", llm)
+    assert rep.outcome is RunOutcome.SUCCESS and rep.steps == 3 and rep.errors == 2
+    steps = await steps_of(session, rep)
+    assert [s.result for s in steps] == [StepResult.ERROR, StepResult.ERROR, StepResult.OK]
+    assert "timeout" in (steps[0].error or "").lower()
+    # Provider trouble is not shown to the model as its own mistake.
+    assert all("timeout" not in r.user.lower() for r in llm.requests)
+
+
+async def test_repeated_llm_timeouts_abort_with_a_clear_reason(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    llm = _FlakyLLM(99, [])
+    rep = await go(session, cfg, f"{local_site}/form.html", llm)
+    assert rep.outcome is RunOutcome.ABORTED and rep.steps == 3
+    assert rep.end_reason.startswith("LLM unavailable: 3 failures in a row")
+
+
+class _SlowLLM(FakeLLM):
+    async def decide(self, request: LLMRequest) -> LLMResponse:
+        await asyncio.sleep(30)
+        return await super().decide(request)
+
+
+async def test_slow_llm_cannot_overrun_the_run_time_budget(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    started = time.monotonic()
+    rep = await go(
+        session,
+        cfg.model_copy(update={"slba_max_seconds": 3}),
+        f"{local_site}/form.html",
+        _SlowLLM([]),
+    )
+    assert time.monotonic() - started < 20  # not 30s+: the call was cut off
+    assert rep.outcome is RunOutcome.ABORTED
+    assert rep.end_reason == "time budget (3s) reached while waiting for the LLM"
+    steps = await steps_of(session, rep)
+    assert len(steps) == 1 and steps[0].result is StepResult.ERROR

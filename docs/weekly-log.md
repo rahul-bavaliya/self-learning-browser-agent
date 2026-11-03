@@ -137,3 +137,17 @@
 - First NIM attempts: `.env` base URL included `/chat/completions` (client now accepts both);
   `meta/llama-3.3-70b-instruct` returned HTTP 410 (retired 2026-08-26, still listed in /models).
   Added `python -m agent.llm.probe` to test candidate models with the real request shape.
+
+## Timeout handling — 2026-11-03
+
+Trigger: `openai/gpt-oss-20b` on NIM never answered; one probe waited 183s (3 x 60s).
+- Client: typed errors. `LLMTimeoutError` (every attempt timed out) and `LLMTransientError`
+  (429 / 5xx / network after retries) vs permanent `LLMError` (400/401/404/410, not retried).
+  Connect timeout 10s, read timeout `SLBA_LLM_TIMEOUT_S`; honours numeric `Retry-After`
+  (capped at 30s).
+- Loop: a transient failure is recorded as an error step and the step is retried; after
+  `SLBA_LLM_MAX_CONSECUTIVE_FAILURES` (3) in a row the run aborts with "LLM unavailable: ...".
+  Permanent errors abort immediately. Provider failures are kept out of the model's history.
+- Each LLM call is bounded by the run's remaining time (`SLBA_MAX_SECONDS`); snapshot and
+  screenshot have 10s timeouts, and a page that won't produce a snapshot aborts the run.
+- Probe: 20s per model, no retries, prints which model it is waiting on.

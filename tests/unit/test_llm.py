@@ -290,3 +290,75 @@ def test_factory_passes_timeout_and_retries() -> None:
         )
     )
     assert isinstance(client, OpenAICompatClient) and client._max_retries == 0
+
+
+# ---------------------------------------------------------------- failure types
+async def test_every_attempt_timing_out_raises_llm_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.llm import LLMTimeoutError
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("agent.llm.openai_compat.asyncio.sleep", no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        raise httpx.ReadTimeout("slow", request=request)
+
+    with pytest.raises(LLMTimeoutError, match=r"no answer within 60s .* 3 attempts"):
+        await _client(handler, max_retries=2).decide(REQ)
+    assert calls["n"] == 3
+
+
+async def test_persisting_5xx_is_transient_not_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.llm import LLMTimeoutError, LLMTransientError
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("agent.llm.openai_compat.asyncio.sleep", no_sleep)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": {"message": "overloaded"}})
+
+    with pytest.raises(LLMTransientError, match="HTTP 503: overloaded after 2 attempts") as info:
+        await _client(handler, max_retries=1).decide(REQ)
+    assert not isinstance(info.value, LLMTimeoutError)
+
+
+@pytest.mark.parametrize("status", [400, 401, 404, 410])
+async def test_permanent_errors_are_not_transient(status: int) -> None:
+    from agent.llm import LLMTransientError
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, json={"error": {"message": "nope"}})
+
+    with pytest.raises(LLMError) as info:
+        await _client(handler, max_retries=2).decide(REQ)
+    assert not isinstance(info.value, LLMTransientError)
+
+
+async def test_retry_after_header_is_honoured_and_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    slept: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr("agent.llm.openai_compat.asyncio.sleep", record_sleep)
+    replies = iter(
+        [
+            httpx.Response(429, headers={"Retry-After": "7"}, json={}),
+            httpx.Response(429, headers={"Retry-After": "600"}, json={}),
+            httpx.Response(200, json=_completion(_tool_message(ACTION))),
+        ]
+    )
+
+    resp = await _client(lambda request: next(replies), max_retries=2).decide(REQ)
+    assert resp.action_input == ACTION
+    assert slept == [7.0, 30.0]
+
+
+def test_connect_timeout_is_short() -> None:
+    client = OpenAICompatClient(model="m", api_key=SecretStr(KEY), timeout_s=60)
+    assert client._timeout.connect == 10.0 and client._timeout.read == 60.0

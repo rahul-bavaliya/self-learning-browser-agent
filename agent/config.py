@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     slba_llm_max_tokens: int = Field(default=1024, ge=64, le=8192)
     slba_llm_timeout_s: float = Field(default=60.0, ge=1)  # per attempt
     slba_llm_max_retries: int = Field(default=2, ge=0, le=5)
+    # Transient LLM failures (timeouts, 429, 5xx) the loop tolerates in a row before
+    # aborting the run. Each failed attempt is recorded as an error step.
+    slba_llm_max_consecutive_failures: int = Field(default=3, ge=1, le=10)
     # US$ per million tokens. Set from your provider's pricing page; 0 means cost
     # is not tracked and the per-run cost budget cannot trigger.
     slba_llm_price_in_per_mtok: float = Field(default=0.0, ge=0)

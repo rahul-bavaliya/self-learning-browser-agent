@@ -57,6 +57,9 @@ If a model rejects forced tool calls, set `SLBA_LLM_TOOL_CHOICE=required` (or `a
 Catalogs still list retired models, so check before picking one:
 `python -m agent.llm.probe` sends each candidate one real agent request and reports
 which return a valid action (one API call per model).
+Slow providers are handled: timeouts and 429/5xx are retried, the run tolerates
+`SLBA_LLM_MAX_CONSECUTIVE_FAILURES` failed LLM calls in a row, and no call can run past
+`SLBA_MAX_SECONDS`.
 Risky actions (form submits, buy/send/delete, password fields) stop and ask you;
 `--non-interactive` denies them instead. Evidence (snapshots, screenshots, confirmation
 decisions) is written under `.slba/evidence/<run-id>/`.

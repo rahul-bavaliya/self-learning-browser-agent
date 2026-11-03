@@ -19,6 +19,17 @@ class LLMError(Exception):
     """Provider call failed (network, auth, rate limit) after retries."""
 
 
+class LLMTransientError(LLMError):
+    """Temporary failure (rate limit, 5xx, network) that persisted after retries.
+
+    The agent loop records it and tries the step again, up to a limit.
+    """
+
+
+class LLMTimeoutError(LLMTransientError):
+    """The provider didn't answer within the timeout, on every attempt."""
+
+
 class LLMConfigError(LLMError):
     """The provider is misconfigured, e.g. missing API key or model."""
 

@@ -10,6 +10,7 @@ it decides ``verified`` and the outcome; otherwise the run stays unverified.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -26,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agent.actions import Action, ActionOutcome, ActionParseError, execute, parse_action
 from agent.browser import browser_session
 from agent.config import BrowserChannel, Settings, get_settings
-from agent.llm.base import LLMClient, LLMError, LLMResponse
+from agent.llm.base import LLMClient, LLMError, LLMResponse, LLMTransientError
 from agent.observe import observe
 from agent.prompts import HistoryEntry, build_request
 from provenance.ledger import Ledger
@@ -37,6 +38,7 @@ from safety.captcha import captcha_present
 from safety.gate import ConfirmationRequest, Confirmer, DenyAll
 
 log = structlog.get_logger("slba.loop")
+PAGE_OP_TIMEOUT_MS = 10_000  # snapshot / screenshot; a page that hangs longer is stuck
 
 Checker = Callable[[Page, str | None], Awaitable[bool]]
 
@@ -193,6 +195,7 @@ class _State:
     """Mutable bookkeeping for one run."""
 
     cost: float = 0.0
+    llm_failures_in_a_row: int = 0
     answer: str | None = None
     finished: bool = False
     claimed_success: bool = False
@@ -244,40 +247,61 @@ async def _steps(
             )
 
         # ---- observe (and keep evidence of exactly what the model saw)
-        obs = await observe(page, max_chars=cfg.slba_observation_max_chars)
+        try:
+            obs = await observe(page, max_chars=cfg.slba_observation_max_chars)
+        except PlaywrightError as exc:
+            # The page itself is stuck (e.g. a hung script). Nothing to show the model.
+            return state.stop(RunOutcome.ABORTED, f"page did not respond: {_first_line(exc)}")
         snap = obs.save(evidence_dir / f"step-{i:03d}-snapshot.yml")
         shot: Path | None = evidence_dir / f"step-{i:03d}-screenshot.png"
         try:
-            await page.screenshot(path=shot)
+            await page.screenshot(path=shot, timeout=PAGE_OP_TIMEOUT_MS)
         except PlaywrightError:
             shot = None
 
-        # ---- decide
+        # ---- decide (bounded by what is left of the run's time budget)
+        request = build_request(
+            goal=goal, observation=obs, history=state.history, max_tokens=cfg.slba_llm_max_tokens
+        )
+        remaining = cfg.slba_max_seconds - (time.monotonic() - started)
+        failure: str | None = None
+        stop_reason: str | None = None
         try:
-            resp = await llm.decide(
-                build_request(
-                    goal=goal,
-                    observation=obs,
-                    history=state.history,
-                    max_tokens=cfg.slba_llm_max_tokens,
-                )
-            )
-        except LLMError as exc:
+            resp = await asyncio.wait_for(llm.decide(request), timeout=max(remaining, 1.0))
+        except TimeoutError:
+            failure = f"LLM still thinking when the time budget ran out ({remaining:.0f}s left)"
+            stop_reason = f"time budget ({cfg.slba_max_seconds}s) reached while waiting for the LLM"
+        except LLMTransientError as exc:
+            state.llm_failures_in_a_row += 1
+            failure = str(exc)
+            limit = cfg.slba_llm_max_consecutive_failures
+            if state.llm_failures_in_a_row >= limit:
+                stop_reason = f"LLM unavailable: {limit} failures in a row; last: {exc}"[:300]
+        except LLMError as exc:  # permanent: bad key, unknown or retired model, bad request
+            failure = str(exc)
+            stop_reason = f"LLM call failed: {exc}"[:300]
+        if failure is not None:
+            # Provider trouble isn't the model's mistake: record it, keep it out of history.
             await _record(
                 ledger,
                 session,
                 run,
                 i,
                 {},
-                ActionOutcome(StepResult.ERROR, str(exc)),
+                ActionOutcome(StepResult.ERROR, failure),
                 None,
                 obs.url,
                 snap,
                 shot,
                 None,
                 state,
+                in_history=False,
             )
-            return state.stop(RunOutcome.ABORTED, f"LLM call failed: {exc}"[:300])
+            if stop_reason is not None:
+                return state.stop(RunOutcome.ABORTED, stop_reason)
+            log.warning("llm_retry", run_id=str(run.ledger_item_id), idx=i, error=failure[:200])
+            continue
+        state.llm_failures_in_a_row = 0
         state.cost += resp.cost_usd
 
         try:
@@ -377,6 +401,7 @@ async def _record(
     state: _State,
     *,
     summary: str | None = None,
+    in_history: bool = True,
 ) -> None:
     """Write one step and its evidence, commit, and update the history."""
     step = await ledger.record_step(
@@ -403,9 +428,12 @@ async def _record(
         state.denied += 1
     elif outcome.result is StepResult.ERROR:
         state.errors += 1
-    state.history.append(
-        HistoryEntry(idx, summary or json.dumps(action)[:200], outcome.result.value, outcome.error)
-    )
+    if in_history:
+        state.history.append(
+            HistoryEntry(
+                idx, summary or json.dumps(action)[:200], outcome.result.value, outcome.error
+            )
+        )
     log.info(
         "step",
         run_id=str(run.ledger_item_id),
@@ -413,3 +441,8 @@ async def _record(
         action=summary or "invalid",
         result=outcome.result.value,
     )
+
+
+def _first_line(exc: BaseException) -> str:
+    text = str(exc).strip()
+    return text.splitlines()[0][:200] if text else type(exc).__name__

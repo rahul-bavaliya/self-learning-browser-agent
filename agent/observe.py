@@ -16,6 +16,7 @@ from playwright.async_api import Page
 from safety.untrusted import wrap_untrusted
 
 TRUNCATION_NOTE = "… [{n} more lines not shown: scroll, or act on what is visible]"
+SNAPSHOT_TIMEOUT_MS = 10_000
 PASSWORD_MASK = "•••"  # noqa: S105 - a mask, not a password
 
 # Playwright's ai-mode snapshot shows input values, including password fields.
@@ -85,7 +86,8 @@ async def observe(page: Page, *, max_chars: int = 12_000) -> Observation:
 
     Password field values are masked before the snapshot is stored or sent anywhere.
     """
-    raw = mask_values(await page.aria_snapshot(mode="ai"), await password_values(page))
+    snapshot_text = await page.aria_snapshot(mode="ai", timeout=SNAPSHOT_TIMEOUT_MS)
+    raw = mask_values(snapshot_text, await password_values(page))
     snapshot, truncated = cap_lines(raw, max_chars)
     return Observation(
         url=page.url,
