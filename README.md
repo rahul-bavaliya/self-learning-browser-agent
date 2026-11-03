@@ -4,7 +4,7 @@ A Playwright agent for Chrome and Edge that gets better at websites through site
 a skill library and weekly LoRA consolidation, with a provenance ledger that traces
 every learned item back to its source. Architecture, phases and rules: `docs/` (SOP-SLBA-001).
 
-**Status: Phase 1, week 2 — LLM interface, observation, actions.** Plan: `docs/phase-1.md`.
+**Status: Phase 1, week 3 — the agent runs.** Plan: `docs/phase-1.md`.
 
 ## Layout
 
@@ -38,6 +38,21 @@ pre-commit install
 
 Already have Chrome and Edge installed system-wide? Playwright uses those; skip the
 install step (on Linux it may ask for sudo to replace them — say no if you'd rather not).
+
+## Run the agent
+
+```bash
+alembic upgrade head
+python -m http.server 8001 -d tests/smoke/site -b 127.0.0.1 &     # a local test page
+python -m agent run "Preview a large order for Rahul" --start-url http://127.0.0.1:8001/form.html
+python -m agent show <run-id>                                      # every step from the ledger
+```
+
+Needs `SLBA_LLM_API_KEY`, `SLBA_LLM_MODEL` and, for cost tracking, the two
+`SLBA_LLM_PRICE_*_PER_MTOK` values. `SLBA_LLM_PROVIDER=fake` runs offline with no key.
+Risky actions (form submits, buy/send/delete, password fields) stop and ask you;
+`--non-interactive` denies them instead. Evidence (snapshots, screenshots, confirmation
+decisions) is written under `.slba/evidence/<run-id>/`.
 
 ## Database
 

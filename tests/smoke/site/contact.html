@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SLBA Contact</title></head>
+<body>
+  <h1>Contact us</h1>
+  <form id="contact" onsubmit="event.preventDefault(); document.getElementById('out').textContent = 'sent:' + document.getElementById('msg').value;">
+    <label for="msg">Message</label>
+    <input id="msg" name="msg">
+    <button type="submit">Send message</button>
+  </form>
+  <button type="button" onclick="document.getElementById('out').textContent = 'previewed'">Preview</button>
+  <p id="out"></p>
+</body>
+</html>

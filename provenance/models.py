@@ -109,6 +109,7 @@ class EvidenceKind(enum.StrEnum):
 
     SCREENSHOT = "screenshot"
     ARIA_SNAPSHOT = "aria_snapshot"
+    CONFIRMATION = "confirmation"  # gate decision (who approved/denied what)
 
 
 def _enum(e: type[enum.Enum], name: str) -> Enum:
@@ -187,6 +188,8 @@ class Run(Base):
     )
     verified: Mapped[bool] = mapped_column(default=False)
     agent_answer: Mapped[str | None] = mapped_column(Text)
+    # Why the run stopped, e.g. 'agent finished', 'step budget (25) reached', 'captcha'.
+    end_reason: Mapped[str | None] = mapped_column(Text)
     step_count: Mapped[int] = mapped_column(Integer, default=0)
     tokens_in: Mapped[int] = mapped_column(Integer, default=0)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)

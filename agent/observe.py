@@ -10,11 +10,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page
 
 from safety.untrusted import wrap_untrusted
 
 TRUNCATION_NOTE = "… [{n} more lines not shown: scroll, or act on what is visible]"
+PASSWORD_MASK = "•••"  # noqa: S105 - a mask, not a password
+
+# Playwright's ai-mode snapshot shows input values, including password fields.
+_MASKABLE_FIELD_VALUES_JS = (
+    "() => [...document.querySelectorAll('input[type=password]')].map(e => e.value).filter(Boolean)"
+)
 
 
 @dataclass(frozen=True)
@@ -55,9 +62,30 @@ def cap_lines(text: str, max_chars: int) -> tuple[str, bool]:
     return "\n".join(kept), True
 
 
+async def password_values(page: Page) -> list[str]:
+    """Return the current value of every password field, in all frames."""
+    values: list[str] = []
+    for frame in page.frames:
+        try:
+            values.extend(await frame.evaluate(_MASKABLE_FIELD_VALUES_JS))
+        except PlaywrightError:
+            continue  # detached or cross-origin frame we can't read: nothing to mask
+    return values
+
+
+def mask_values(text: str, values: list[str]) -> str:
+    """Replace each secret value with a mask, longest first."""
+    for v in sorted(set(values), key=len, reverse=True):
+        text = text.replace(v, PASSWORD_MASK)
+    return text
+
+
 async def observe(page: Page, *, max_chars: int = 12_000) -> Observation:
-    """Snapshot the page's accessibility tree with element refs."""
-    raw = await page.aria_snapshot(mode="ai")
+    """Snapshot the page's accessibility tree with element refs.
+
+    Password field values are masked before the snapshot is stored or sent anywhere.
+    """
+    raw = mask_values(await page.aria_snapshot(mode="ai"), await password_values(page))
     snapshot, truncated = cap_lines(raw, max_chars)
     return Observation(
         url=page.url,

@@ -58,9 +58,9 @@ Async SQLAlchemy 2.0 with psycopg 3, matching async Playwright, so the loop neve
 |---|---|
 | ledger_items | id (uuid), item_type (run \| step \| evidence), origin_type (agent_run \| human \| benchmark \| import), source_run_id, url, evidence_ref, trust_score (0–1), status (active \| flagged \| retracted), created_at, retracted_at, retraction_reason |
 | ledger_edges | parent_id, child_id, relation (produced \| evidence_for \| derived_from); primary key on all three |
-| runs | ledger_item_id, goal, start_url, channel, model, task_id (nullable), outcome (success \| failure \| aborted \| blocked), verified, step_count, tokens_in, tokens_out, cost_usd, started_at, ended_at |
+| runs | ledger_item_id, goal, start_url, channel, model, task_id (nullable), outcome (success \| failure \| aborted \| blocked), verified, end_reason, step_count, tokens_in, tokens_out, cost_usd, started_at, ended_at |
 | steps | ledger_item_id, run_id, idx, observation_ref, action (jsonb), result (ok \| error \| gated \| denied), error, tokens_in, tokens_out, latency_ms |
-| evidence | ledger_item_id, kind (screenshot \| aria_snapshot), path, sha256, bytes |
+| evidence | ledger_item_id, kind (screenshot \| aria_snapshot \| confirmation), path, sha256, bytes |
 
 Trust rule for Phase 1: a run starts at 0.5; a checker-verified success raises it to 0.9; a failure drops it to 0.1. Steps and evidence inherit their run's score. Retraction sets the item to retracted and its descendants to flagged; nothing is deleted.
 

@@ -80,6 +80,44 @@
 | Injection page text stays inside the wrapper (real browser) | pass |
 | Off-allowlist goto denied before any request | pass |
 
-**To confirm in the Codespace:** `SLBA_REQUIRE_ALL_BROWSERS=1 python -m pytest -q` (Edge runs too).
+**Confirmed in the Codespace (2026-11-03):** 90 passed with Chrome and Edge.
 
 **Next:** week 3 — D6 safety gate, D7 agent loop + `python -m agent run`.
+
+## Phase 1, week 3 (D6, D7) — built 2026-11-03
+
+**Done**
+- D6 `safety/gate.py`: reads the target element from the live page; gates form submits
+  (from the DOM, not the label), Enter inside a form, password fields, and controls labelled
+  buy/pay/send/delete/publish/sign up and similar. Confirmers: `CliConfirmer` (asks y/N),
+  `DenyAll` (non-interactive), `LocalhostAutoConfirm` (eval tasks, localhost only). Every gate
+  decision is stored as `confirmation` evidence.
+- `safety/captcha.py` stops the run as `blocked`; `safety/redact.py` masks secret-looking
+  keys and every SecretStr value in logs.
+- D7 `agent/loop.py`: observe → decide → gate → act → record, committed per step; budgets
+  for steps, time and cost; checker alone decides `verified`. Migration 0002 adds
+  `runs.end_reason` and the `confirmation` evidence kind (downgrade refuses to drop
+  confirmation evidence).
+- CLI: `python -m agent run "<goal>" --start-url URL [--non-interactive]`, `python -m agent show RUN_ID`.
+
+**Safety findings, fixed**
+- Typed passwords appeared in the step log line and the confirmation evidence. Fixed: the
+  step summary masks text for password fields everywhere.
+- Playwright's ai-mode accessibility snapshot includes password field *values* in plain text,
+  so the next observation would have saved the password as evidence and sent it to the LLM.
+  Fixed: password values are masked inside `observe()`. A test asserts the password appears
+  nowhere: ledger, evidence files, logs or any later request to the model.
+
+**Results (cloud workspace, Chrome, local Postgres)**
+| Check | Result |
+|---|---|
+| Full suite | 111 passed, 6 skipped (Edge) |
+| End-to-end loop tests (FakeLLM, real Chrome + Postgres) | 12 passed |
+| Happy path verified, ledger coverage 100%, orphans none | pass |
+| Form submit denied without confirmation, form not submitted | pass |
+| Injected goto to a blocked host denied, never requested | pass |
+| CAPTCHA page blocked before any LLM call | pass |
+
+**Not yet measured:** a live run with a real model (needs `SLBA_LLM_API_KEY`).
+
+**Next:** week 4 — D8 local task site + 12 tasks with checkers, D9 eval runner + baseline.

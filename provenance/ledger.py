@@ -196,6 +196,7 @@ class Ledger:
         verified: bool,
         agent_answer: str | None = None,
         cost_usd: float = 0.0,
+        end_reason: str | None = None,
     ) -> Run:
         """Close a run and set trust on it and everything it produced.
 
@@ -214,6 +215,7 @@ class Ledger:
         run.outcome = outcome
         run.verified = verified
         run.agent_answer = agent_answer
+        run.end_reason = end_reason
         run.cost_usd = cost_usd
         run.ended_at = utcnow()
         score = trust_for_outcome(outcome, verified)
