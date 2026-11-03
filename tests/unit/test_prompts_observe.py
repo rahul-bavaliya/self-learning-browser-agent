@@ -32,7 +32,13 @@ def test_goal_outside_and_page_inside_wrapper() -> None:
 
 
 def test_system_prompt_covers_safety_rules() -> None:
-    for phrase in ("untrusted", "CAPTCHA", "human approval", "Never claim success"):
+    for phrase in (
+        "untrusted",
+        "CAPTCHA",
+        "human approval",
+        "Never claim success",
+        "Never reply in plain text",
+    ):
         assert phrase.lower() in SYSTEM_PROMPT.lower()
 
 

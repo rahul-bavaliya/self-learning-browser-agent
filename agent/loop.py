@@ -307,7 +307,10 @@ async def _steps(
         try:
             action = parse_action(resp.action_input)
         except ActionParseError as exc:
-            outcome = ActionOutcome(StepResult.ERROR, error=str(exc))
+            # Keep what the model said instead of a tool call: it explains the miss.
+            said = " ".join(resp.text.split())[:200]
+            error = f"{exc}; you replied with text: {said!r}" if said else str(exc)
+            outcome = ActionOutcome(StepResult.ERROR, error=error)
             await _record(
                 ledger,
                 session,

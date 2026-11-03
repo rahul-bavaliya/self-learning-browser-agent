@@ -151,3 +151,28 @@ Trigger: `openai/gpt-oss-20b` on NIM never answered; one probe waited 183s (3 x 
 - Each LLM call is bounded by the run's remaining time (`SLBA_MAX_SECONDS`); snapshot and
   screenshot have 10s timeouts, and a page that won't produce a snapshot aborts the run.
 - Probe: 20s per model, no retries, prints which model it is waiting on.
+
+## First live run — 2026-11-03
+
+Model `nvidia/nemotron-3.5-bolt-e4b` on NVIDIA NIM (free tier), Chrome, Codespace.
+Goal "Preview a large order for Rahul" on `tests/smoke/site/form.html`.
+
+| Metric | Result |
+|---|---|
+| Outcome | success (claimed); manually confirmed: final snapshot shows `Rahul/Large` |
+| Steps | 7 (ideal 4): 1 premature Preview click, 2 steps with no tool call |
+| Wall time | 26 s |
+| Tokens | 7,553 in / 325 out (~1.1k per step) |
+| Ledger | 22 items (run + 7 steps + 14 evidence), trust 0.5 (unverified) |
+
+Findings and fixes:
+- Steps 4–5: model replied in plain text instead of calling `act` once it thought it was
+  done. Fixed the prompt ("never reply in plain text; call finish") and the step error now
+  records what the model said, so misses are diagnosable.
+- Step 1 clicked Preview before choosing the size: a planning slip, the kind of lesson site
+  memory (Phase 2) should capture for this form.
+
+Getting here: Anthropic credit balance too low → switched to NIM; base URL with
+`/chat/completions` doubled; retired model (HTTP 410); wrong key (Anthropic key sent to NIM);
+gpt-oss-20b timeouts; 4 Nemotron models not enabled for the account (404); Postgres password
+mismatch after Codespace restart; test server not running after restart.

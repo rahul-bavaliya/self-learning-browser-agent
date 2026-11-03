@@ -377,3 +377,33 @@ async def test_slow_llm_cannot_overrun_the_run_time_budget(
     assert rep.end_reason == "time budget (3s) reached while waiting for the LLM"
     steps = await steps_of(session, rep)
     assert len(steps) == 1 and steps[0].result is StepResult.ERROR
+
+
+class _ChattyLLM(FakeLLM):
+    """Replies in plain text once (no tool call), then finishes properly."""
+
+    async def decide(self, request: LLMRequest) -> LLMResponse:
+        resp = await super().decide(request)
+        if len(self.requests) == 1:
+            return LLMResponse(
+                action_input=None,
+                text="The order has been previewed.",
+                model="chatty",
+                tokens_in=10,
+                tokens_out=5,
+                cost_usd=0.0,
+                latency_ms=0,
+            )
+        return resp
+
+
+async def test_plain_text_reply_is_recorded_and_shown_back(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    llm = _ChattyLLM([None, {"type": "finish", "success": True}])
+    rep = await go(session, cfg, f"{local_site}/form.html", llm)
+    steps = await steps_of(session, rep)
+    assert steps[0].result is StepResult.ERROR
+    assert "The order has been previewed." in (steps[0].error or "")
+    assert "you replied with text" in llm.requests[1].user
+    assert rep.outcome is RunOutcome.SUCCESS
