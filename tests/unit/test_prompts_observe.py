@@ -63,3 +63,8 @@ def test_cap_lines_keeps_whole_lines_and_says_how_many_cut() -> None:
 def test_observation_save(tmp_path: Path) -> None:
     path = _obs().save(tmp_path / "run" / "step0.yml")
     assert "ref=e6" in path.read_text()
+
+
+def test_history_shows_loop_notes() -> None:
+    hist = [HistoryEntry(0, "click ref=e5", "ok", note="no visible change on the page")]
+    assert render_history(hist) == "0. click ref=e5 -> ok (no visible change on the page)"

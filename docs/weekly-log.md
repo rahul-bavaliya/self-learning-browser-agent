@@ -176,3 +176,12 @@ Getting here: Anthropic credit balance too low → switched to NIM; base URL wit
 `/chat/completions` doubled; retired model (HTTP 410); wrong key (Anthropic key sent to NIM);
 gpt-oss-20b timeouts; 4 Nemotron models not enabled for the account (404); Postgres password
 mismatch after Codespace restart; test server not running after restart.
+
+## Second live run and loop feedback — 2026-11-03
+
+- Re-run after the prompt fix: 0 errors (no more plain-text replies), but 15 steps: the model
+  clicked Preview 11 times before choosing Large. It only ever saw "click -> ok".
+- Fix: after each action the next snapshot is compared with the one before it; history lines
+  now say "no visible change on the page" and, from 3 repeats, "same action N times in a row:
+  try something different". `SLBA_MAX_REPEATS` (5) identical no-op actions abort the run as
+  "stuck", saving free-tier quota. Real progress is unaffected (test).

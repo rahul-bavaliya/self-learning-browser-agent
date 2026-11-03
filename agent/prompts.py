@@ -41,6 +41,7 @@ class HistoryEntry:
     action_summary: str
     result: str
     error: str | None = None
+    note: str | None = None  # loop feedback, e.g. "no visible change on the page"
 
 
 def render_history(history: Sequence[HistoryEntry], limit: int = HISTORY_LIMIT) -> str:
@@ -58,6 +59,8 @@ def render_history(history: Sequence[HistoryEntry], limit: int = HISTORY_LIMIT) 
         line = f"{h.idx}. {neutralise(h.action_summary)} -> {h.result}"
         if h.error:
             line += f": {neutralise(h.error)}"
+        if h.note:
+            line += f" ({h.note})"
         lines.append(line)
     return "\n".join(lines)
 

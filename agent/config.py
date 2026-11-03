@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     slba_max_steps: int = Field(default=25, ge=1, le=200)
     slba_max_seconds: int = Field(default=300, ge=10)
     slba_max_cost_per_run: float = Field(default=0.50, ge=0)
+    # Same action this many times in a row with no visible change = stuck; abort the run.
+    slba_max_repeats: int = Field(default=5, ge=2, le=50)
 
     # --- evidence (screenshots + snapshots; DB keeps path and SHA-256)
     slba_evidence_root: Path = Path(".slba/evidence")

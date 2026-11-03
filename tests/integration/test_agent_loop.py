@@ -407,3 +407,39 @@ async def test_plain_text_reply_is_recorded_and_shown_back(
     assert "The order has been previewed." in (steps[0].error or "")
     assert "you replied with text" in llm.requests[1].user
     assert rep.outcome is RunOutcome.SUCCESS
+
+
+async def test_repeated_no_op_actions_get_feedback_then_stop(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    # A model that keeps clicking Preview: the first click changes the page, later ones don't.
+    llm = FakeLLM(lambda req, i: {"type": "click", "ref": ref(req, "button", "Preview")})
+    rep = await go(
+        session, cfg.model_copy(update={"slba_max_repeats": 4}), f"{local_site}/form.html", llm
+    )
+    assert rep.outcome is RunOutcome.ABORTED and rep.steps == 4
+    assert rep.end_reason.startswith("stuck: repeated 'click ref=")
+    assert "4 times with no visible change" in rep.end_reason
+    later = llm.requests[-1].user
+    assert "no visible change on the page" in later
+    assert "same action 3 times in a row" in later
+    # The first click did change the page, so it carries no "no change" note.
+    first_line = next(line for line in later.splitlines() if line.startswith("0. click"))
+    assert "no visible change" not in first_line
+
+
+async def test_progress_feedback_does_not_trip_on_real_progress(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    def script(req: LLMRequest, i: int) -> dict[str, Any]:
+        return [
+            {"type": "fill", "ref": ref(req, "textbox", "Name"), "text": "Rahul"},
+            {"type": "select", "ref": ref(req, "combobox", "Size"), "value": "Large"},
+            {"type": "click", "ref": ref(req, "button", "Preview")},
+            {"type": "finish", "success": True},
+        ][i]
+
+    llm = FakeLLM(script)
+    rep = await go(session, cfg, f"{local_site}/form.html", llm)
+    assert rep.outcome is RunOutcome.SUCCESS and rep.steps == 4
+    assert all("no visible change" not in r.user for r in llm.requests)

@@ -11,6 +11,7 @@ it decides ``verified`` and the outcome; otherwise the run stays unverified.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import time
 import uuid
@@ -38,7 +39,11 @@ from safety.captcha import captcha_present
 from safety.gate import ConfirmationRequest, Confirmer, DenyAll
 
 log = structlog.get_logger("slba.loop")
-PAGE_OP_TIMEOUT_MS = 10_000  # snapshot / screenshot; a page that hangs longer is stuck
+PAGE_OP_TIMEOUT_MS = 10_000
+REPEAT_WARNING_AT = 3  # tell the model once it has done the same thing this many times
+_NON_ACTING = frozenset(
+    {"answer", "finish", "wait"}
+)  # snapshot / screenshot; a page that hangs longer is stuck
 
 Checker = Callable[[Page, str | None], Awaitable[bool]]
 
@@ -203,6 +208,10 @@ class _State:
     denied: int = 0
     errors: int = 0
     history: list[HistoryEntry] = field(default_factory=list)
+    # Progress feedback: the snapshot the last action started from, and repeats of it.
+    before_last_action: str | None = None
+    last_action: str | None = None
+    repeats: int = 0
 
     def stop(self, outcome: RunOutcome, reason: str) -> None:
         self.stopped = (outcome, reason)
@@ -252,6 +261,8 @@ async def _steps(
         except PlaywrightError as exc:
             # The page itself is stuck (e.g. a hung script). Nothing to show the model.
             return state.stop(RunOutcome.ABORTED, f"page did not respond: {_first_line(exc)}")
+        if _note_progress(state, obs.snapshot, cfg.slba_max_repeats):
+            return None  # stuck: _note_progress recorded why
         snap = obs.save(evidence_dir / f"step-{i:03d}-snapshot.yml")
         shot: Path | None = evidence_dir / f"step-{i:03d}-screenshot.png"
         try:
@@ -379,6 +390,10 @@ async def _steps(
             state,
             summary=summary,
         )
+        acted = outcome.result is StepResult.OK and action.type not in _NON_ACTING
+        state.repeats = state.repeats + 1 if acted and summary == state.last_action else 1
+        state.last_action = summary if acted else None
+        state.before_last_action = obs.snapshot if acted else None
 
         if outcome.answer:
             state.answer = outcome.answer
@@ -449,3 +464,31 @@ async def _record(
 def _first_line(exc: BaseException) -> str:
     text = str(exc).strip()
     return text.splitlines()[0][:200] if text else type(exc).__name__
+
+
+def _note_progress(state: _State, snapshot: str, max_repeats: int) -> bool:
+    """Annotate the last step with what it changed; return True if the run is stuck.
+
+    Small models often repeat an action that has no effect (clicking a button that
+    already did its job). They only see "ok", so tell them the page did not change
+    and that they are repeating themselves, and stop the run before it burns its
+    whole step budget.
+    """
+    if state.before_last_action is None or not state.history:
+        return False
+    unchanged = snapshot == state.before_last_action
+    state.before_last_action = None  # compare once per action
+    notes = []
+    if unchanged:
+        notes.append("no visible change on the page")
+    if state.repeats >= REPEAT_WARNING_AT:
+        notes.append(f"same action {state.repeats} times in a row: try something different")
+    if notes:
+        state.history[-1] = dataclasses.replace(state.history[-1], note="; ".join(notes))
+    if unchanged and state.repeats >= max_repeats:
+        state.stop(
+            RunOutcome.ABORTED,
+            f"stuck: repeated {state.last_action!r} {state.repeats} times with no visible change",
+        )
+        return True
+    return False
