@@ -45,7 +45,9 @@
 | Ledger coverage (`orphans()` empty after a full run) | pass |
 | Retract run → all steps and evidence flagged, other runs untouched | pass |
 
-**To confirm in the Codespace**
-- `alembic upgrade head` against the compose Postgres, then `SLBA_REQUIRE_DB=1 python -m pytest -m integration`.
+**Confirmed in the Codespace (2026-11-03)**
+- `alembic upgrade head` on the compose Postgres: 0001 applied.
+- `SLBA_REQUIRE_DB=1 python -m pytest -m integration`: 13 passed.
+- Full suite `python -m pytest`: 36 passed (unit, integration, Chrome + Edge smoke).
 
 **Next:** week 2 — D3 LLM interface, D4 observation builder, D5 action schema.
