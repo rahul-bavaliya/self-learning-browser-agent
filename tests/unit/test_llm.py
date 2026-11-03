@@ -256,10 +256,13 @@ async def test_probe_passes_only_on_a_valid_action() -> None:
     from agent.llm.probe import probe_model
 
     good = FakeLLM([{"type": "fill", "ref": "e3", "text": "Rahul"}], model="good")
+    wrong = FakeLLM([{"type": "click", "ref": "e3"}], model="wrong")
     bad = FakeLLM([{"type": "teleport"}], model="bad")
     assert (await probe_model(good)).ok
+    res_wrong = await probe_model(wrong)
+    assert not res_wrong.ok and res_wrong.valid  # valid action, wrong answer
     res = await probe_model(bad)
-    assert not res.ok and "no valid action" in res.detail
+    assert not res.ok and not res.valid and "no valid action" in res.detail
 
 
 def test_probe_reports_missing_key_without_traceback(

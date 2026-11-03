@@ -2,8 +2,9 @@
 
 Catalogs list retired models (they return HTTP 410) and many models ignore forced
 tool calls, so each candidate gets the agent's real request shape: the ``act``
-tool, named ``tool_choice``, and a tiny page. A model passes only if the reply
-parses as a valid action. One API call per model.
+tool, named ``tool_choice``, and a tiny page. A model passes only if it returns
+the *correct* action (fill the Name box with "Rahul"); a valid but wrong action
+is reported as ``wrong``. One API call per model.
 
 With no arguments, candidates are picked from the provider's ``/models`` list by
 family names that NIM documents as supporting tool calling.
@@ -20,7 +21,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from agent.actions import ActionParseError, parse_action
+from agent.actions import ActionParseError, Fill, parse_action
 from agent.config import Settings, get_settings
 from agent.llm.base import LLMClient, LLMConfigError, LLMError
 from agent.llm.factory import make_llm
@@ -48,6 +49,7 @@ class ProbeResult:
     ok: bool
     detail: str
     seconds: float
+    valid: bool = False  # returned a well-formed action, right or wrong
 
 
 async def probe_model(client: LLMClient) -> ProbeResult:
@@ -64,7 +66,8 @@ async def probe_model(client: LLMClient) -> ProbeResult:
     except ActionParseError as exc:
         return ProbeResult(client.model, False, f"no valid action: {exc}"[:160], elapsed)
     detail = f"{action.type} {action.model_dump(exclude={'type', 'reasoning'}, exclude_none=True)}"
-    return ProbeResult(client.model, True, detail, elapsed)
+    correct = isinstance(action, Fill) and action.ref == "e3" and "rahul" in action.text.lower()
+    return ProbeResult(client.model, correct, detail, elapsed, valid=True)
 
 
 def pick_candidates(model_ids: Sequence[str], limit: int = 8) -> list[str]:
@@ -111,7 +114,7 @@ async def main_async(models: Sequence[str], pause_s: float, timeout_s: float = 2
         print(f"  …   asking {model} (up to {timeout_s:.0f}s)", end="\r", flush=True)
         res = await probe_model(client)
         results.append(res)
-        mark = "PASS" if res.ok else "fail"
+        mark = "PASS" if res.ok else ("wrong" if res.valid else "fail")
         print(f"{mark}  {res.seconds:5.1f}s  {res.model:<48} {res.detail}".ljust(100), flush=True)
         auth_failures += "HTTP 401" in res.detail or "HTTP 403" in res.detail
         if auth_failures >= 2 and not any(r.ok for r in results):
@@ -120,7 +123,7 @@ async def main_async(models: Sequence[str], pause_s: float, timeout_s: float = 2
     passing = [r for r in results if r.ok]
     if passing:
         best = min(passing, key=lambda r: r.seconds)
-        print(f"\nWorks: {len(passing)}/{len(results)}. Fastest passing: {best.model}")
+        print(f"\nCorrect: {len(passing)}/{len(results)}. Fastest correct: {best.model}")
         print(f"Set it with:  SLBA_LLM_MODEL={best.model}")
         return 0
     print("\nNo model returned a valid action. Try SLBA_LLM_TOOL_CHOICE=required or auto.")
