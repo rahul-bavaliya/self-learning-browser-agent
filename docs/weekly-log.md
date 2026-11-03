@@ -185,3 +185,17 @@ mismatch after Codespace restart; test server not running after restart.
   now say "no visible change on the page" and, from 3 repeats, "same action N times in a row:
   try something different". `SLBA_MAX_REPEATS` (5) identical no-op actions abort the run as
   "stuck", saving free-tier quota. Real progress is unaffected (test).
+
+**Third live run (after loop feedback), 2026-11-03:** same task and model.
+
+| Run | Steps | Errors | Tokens in/out | Time |
+|---|---|---|---|---|
+| 1st live | 7 | 2 | 7,553 / 325 | 26 s |
+| 2nd (before loop feedback) | 15 | 0 | 17,361 / 620 | 34 s |
+| 3rd (after loop feedback) | 5 | 0 | 5,534 / 217 | 12 s |
+
+Ideal is 4 steps; the extra one is the premature Preview click, now recovered from
+immediately. Still unverified (no checker) until week 4.
+
+**Next:** Phase 1 week 4: D8 local task site + 12 tasks with checkers, D9 eval runner +
+baseline (target >= 60% verified success over 3 repeats).
