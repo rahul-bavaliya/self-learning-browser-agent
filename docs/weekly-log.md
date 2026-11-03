@@ -25,4 +25,5 @@
 - Trace recording (`SLBA_TRACE_DIR`) — in backlog.
 
 **Next**
+- Phase 1 defined (docs/phase-1.md, draft v0.1). Week 1: D1 ledger schema + Alembic, D2 ledger repository + retraction.
 - Add SOP-SLBA-001 to the project; check Phase 0 exit criteria; plan Phase 1 from it.
