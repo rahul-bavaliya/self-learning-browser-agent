@@ -229,3 +229,34 @@ async def test_plain_text_404_is_reported_trimmed() -> None:
     with pytest.raises(LLMError) as info:
         await _client(handler).decide(REQ)
     assert str(info.value) == "NIM API error: HTTP 404: 404 page not found"
+
+
+def test_probe_picks_tool_capable_families_and_skips_others() -> None:
+    from agent.llm.probe import pick_candidates
+
+    catalog = [
+        "google/gemma-4-31b-it",
+        "nvidia/nv-embedqa-e5-v5",
+        "meta/llama-guard-4-12b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3-coder-480b",
+        "qwen/qwen3-235b-a22b",
+        "openai/gpt-oss-120b",
+        "nvidia/nemotron-3-nano-30b",
+    ]
+    assert pick_candidates(catalog) == [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3-235b-a22b",
+        "nvidia/nemotron-3-nano-30b",
+    ]
+
+
+async def test_probe_passes_only_on_a_valid_action() -> None:
+    from agent.llm.probe import probe_model
+
+    good = FakeLLM([{"type": "fill", "ref": "e3", "text": "Rahul"}], model="good")
+    bad = FakeLLM([{"type": "teleport"}], model="bad")
+    assert (await probe_model(good)).ok
+    res = await probe_model(bad)
+    assert not res.ok and "no valid action" in res.detail

@@ -134,3 +134,6 @@
 - Removed `agent/llm/anthropic_client.py` and the `anthropic` dependency.
 - Run summary now says why an LLM call failed (`end_reason` carries the provider error).
 - Not yet measured: first live NIM run.
+- First NIM attempts: `.env` base URL included `/chat/completions` (client now accepts both);
+  `meta/llama-3.3-70b-instruct` returned HTTP 410 (retired 2026-08-26, still listed in /models).
+  Added `python -m agent.llm.probe` to test candidate models with the real request shape.

@@ -54,6 +54,9 @@ Set `SLBA_LLM_API_KEY` (an `nvapi-...` key from build.nvidia.com) and `SLBA_LLM_
 `SLBA_LLM_PROVIDER=vllm` or `ollama` plus `SLBA_LLM_BASE_URL` at a self-hosted model;
 the same client is used. `SLBA_LLM_PROVIDER=fake` runs offline with no key.
 If a model rejects forced tool calls, set `SLBA_LLM_TOOL_CHOICE=required` (or `auto`).
+Catalogs still list retired models, so check before picking one:
+`python -m agent.llm.probe` sends each candidate one real agent request and reports
+which return a valid action (one API call per model).
 Risky actions (form submits, buy/send/delete, password fields) stop and ask you;
 `--non-interactive` denies them instead. Evidence (snapshots, screenshots, confirmation
 decisions) is written under `.slba/evidence/<run-id>/`.
