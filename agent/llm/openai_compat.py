@@ -69,7 +69,7 @@ class OpenAICompatClient:
         if not base_url:
             raise LLMConfigError("SLBA_LLM_BASE_URL is not set")
         self._model = model
-        self._url = base_url.rstrip("/") + "/chat/completions"
+        self._url = chat_completions_url(base_url)
         self._label = provider_label
         self._tool_choice = tool_choice
         self._price_in = price_in_per_mtok
@@ -171,6 +171,14 @@ class OpenAICompatClient:
         raise LLMError(f"{self._label} API error: {last}"[:500])
 
 
+def chat_completions_url(base_url: str) -> str:
+    """Accept either the API root (``.../v1``) or the full endpoint URL."""
+    url = base_url.strip().rstrip("/")
+    if url.endswith("/chat/completions"):
+        return url
+    return url + "/chat/completions"
+
+
 def _from_tool_calls(tool_calls: Any) -> dict[str, Any] | None:
     """Arguments of the first ``act`` call (they arrive as a JSON string)."""
     if not isinstance(tool_calls, list):
@@ -217,7 +225,7 @@ def _error_message(resp: httpx.Response) -> str:
     try:
         body = resp.json()
     except ValueError:
-        return resp.text[:200]
+        return resp.text.strip()[:200]
     if isinstance(body, dict):
         err = body.get("error", body)
         if isinstance(err, dict):

@@ -12,7 +12,7 @@ from pydantic import SecretStr
 from agent.config import Settings
 from agent.llm import FakeLLM, LLMClient, LLMConfigError, LLMError, LLMRequest, make_llm
 from agent.llm.base import TOOL_NAME, cost_usd
-from agent.llm.openai_compat import NIM_BASE_URL, OpenAICompatClient
+from agent.llm.openai_compat import NIM_BASE_URL, OpenAICompatClient, chat_completions_url
 
 KEY = "nvapi-" + "test-not-a-real-key"  # pragma: allowlist secret
 REQ = LLMRequest(system="sys", user="goal + page", tool_schema={"type": "object"}, max_tokens=256)
@@ -207,3 +207,25 @@ def test_factory() -> None:
         )
     )
     assert "Ollama" in repr(local)
+
+
+@pytest.mark.parametrize(
+    "base",
+    [
+        "https://integrate.api.nvidia.com/v1",
+        "https://integrate.api.nvidia.com/v1/",
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        " https://integrate.api.nvidia.com/v1/chat/completions/ ",
+    ],
+)
+def test_base_url_root_or_full_endpoint(base: str) -> None:
+    assert chat_completions_url(base) == f"{NIM_BASE_URL}/chat/completions"
+
+
+async def test_plain_text_404_is_reported_trimmed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="404 page not found\n")
+
+    with pytest.raises(LLMError) as info:
+        await _client(handler).decide(REQ)
+    assert str(info.value) == "NIM API error: HTTP 404: 404 page not found"
