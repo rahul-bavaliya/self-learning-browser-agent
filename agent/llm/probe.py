@@ -22,7 +22,7 @@ import httpx
 
 from agent.actions import ActionParseError, parse_action
 from agent.config import Settings, get_settings
-from agent.llm.base import LLMClient, LLMError
+from agent.llm.base import LLMClient, LLMConfigError, LLMError
 from agent.llm.factory import make_llm
 from agent.llm.openai_compat import NIM_BASE_URL
 from agent.observe import Observation
@@ -91,10 +91,16 @@ async def list_models(cfg: Settings) -> list[str]:
 async def main_async(models: Sequence[str], pause_s: float) -> int:
     """Probe each model in turn and print a table."""
     cfg = get_settings()
+    try:  # fail fast on config (e.g. missing key) instead of once per model
+        make_llm(cfg.model_copy(update={"slba_llm_model": models[0] if models else "probe"}))
+    except LLMConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if not models:
         models = pick_candidates(await list_models(cfg))
         print(f"Probing {len(models)} candidates from the catalog (one call each)...\n")
     results = []
+    auth_failures = 0
     for i, model in enumerate(models):
         if i:
             await asyncio.sleep(pause_s)  # stay under free-tier per-minute limits
@@ -103,6 +109,10 @@ async def main_async(models: Sequence[str], pause_s: float) -> int:
         results.append(res)
         mark = "PASS" if res.ok else "fail"
         print(f"{mark}  {res.seconds:5.1f}s  {res.model:<48} {res.detail}")
+        auth_failures += "HTTP 401" in res.detail or "HTTP 403" in res.detail
+        if auth_failures >= 2 and not any(r.ok for r in results):
+            print("\nStopping: the API key is being rejected (HTTP 401/403), not the models.")
+            return 2
     passing = [r for r in results if r.ok]
     if passing:
         best = min(passing, key=lambda r: r.seconds)

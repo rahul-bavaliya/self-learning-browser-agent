@@ -260,3 +260,13 @@ async def test_probe_passes_only_on_a_valid_action() -> None:
     assert (await probe_model(good)).ok
     res = await probe_model(bad)
     assert not res.ok and "no valid action" in res.detail
+
+
+def test_probe_reports_missing_key_without_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from agent.llm import probe
+
+    monkeypatch.setattr(probe, "get_settings", lambda: _settings(slba_llm_provider="nim"))
+    assert probe.main(["some/model"]) == 2
+    assert "SLBA_LLM_API_KEY is not set" in capsys.readouterr().err
