@@ -40,3 +40,13 @@ def test_secrets_not_in_repr(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_allowlist_matching(url: str, allowed: bool) -> None:
     allow = DomainAllowlist({"localhost", "127.0.0.1", "example.com"})
     assert allow.is_allowed(url) is allowed
+
+
+def test_allowlist_proxy_sends_everything_else_to_a_dead_proxy() -> None:
+    from agent.browser import DEAD_PROXY, allowlist_proxy
+
+    proxy = allowlist_proxy(DomainAllowlist({"localhost", "127.0.0.1", "example.com"}))
+    assert proxy["server"] == DEAD_PROXY
+    bypass = proxy["bypass"].split(",")
+    assert {"localhost", "127.0.0.1", "example.com", "*.example.com"} <= set(bypass)
+    assert "*.127.0.0.1" not in bypass

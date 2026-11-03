@@ -51,3 +51,35 @@
 - Full suite `python -m pytest`: 36 passed (unit, integration, Chrome + Edge smoke).
 
 **Next:** week 2 — D3 LLM interface, D4 observation builder, D5 action schema.
+
+## Phase 1, week 2 (D3, D4, D5) — built 2026-11-03
+
+**Done**
+- D3 `agent/llm/`: `LLMClient` Protocol; `AnthropicClient` (forced `act` tool, usage and cost
+  per call, key held as SecretStr); `FakeLLM` (scripted, deterministic); `make_llm()` factory.
+  One stateless call per step keeps prompts bounded and providers swappable.
+- D4 `agent/observe.py` + `safety/untrusted.py`: accessibility snapshot in Playwright "ai" mode
+  with element refs, capped by whole lines; URL, title and snapshot wrapped in
+  `<untrusted_page_content>`, with any wrapper tag inside page text neutralised.
+- D5 `agent/actions.py`: 9 typed actions (click, fill, press, select, scroll, goto, wait,
+  answer, finish); strict parsing with model-readable errors; key allowlist; executor returns
+  ok / error / denied and never raises on page failures; goto checks the allowlist first.
+- `agent/prompts.py`: system prompt with the safety rules; goal outside, page inside the wrapper.
+
+**Safety finding, fixed**
+- Chrome's own background services reached the network despite Phase 0's flags. A net log of
+  one 8-second session on a blank page showed accounts.google.com, android.clients.google.com,
+  clients2.google.com, update.googleapis.com and www.google.com. These bypass Playwright's page
+  route. Fix: browser-wide dead proxy; only allowlisted hosts bypass it. After the fix all 57
+  attempts failed with ERR_PROXY_CONNECTION_FAILED and none left the machine.
+
+**Results (cloud workspace, Chrome only)**
+| Check | Result |
+|---|---|
+| Full suite | 84 passed, 6 skipped (Edge not installable here) |
+| Injection page text stays inside the wrapper (real browser) | pass |
+| Off-allowlist goto denied before any request | pass |
+
+**To confirm in the Codespace:** `SLBA_REQUIRE_ALL_BROWSERS=1 python -m pytest -q` (Edge runs too).
+
+**Next:** week 3 — D6 safety gate, D7 agent loop + `python -m agent run`.

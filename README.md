@@ -4,7 +4,7 @@ A Playwright agent for Chrome and Edge that gets better at websites through site
 a skill library and weekly LoRA consolidation, with a provenance ledger that traces
 every learned item back to its source. Architecture, phases and rules: `docs/` (SOP-SLBA-001).
 
-**Status: Phase 1, week 1 — provenance ledger.** Plan: `docs/phase-1.md`.
+**Status: Phase 1, week 2 — LLM interface, observation, actions.** Plan: `docs/phase-1.md`.
 
 ## Layout
 
@@ -63,6 +63,10 @@ pre-commit clean.
 ## Safety rules enforced from day one
 
 - Each browser session uses a fresh temporary profile, deleted on exit. No personal profile.
-- Every network request is checked against `SLBA_DOMAIN_ALLOWLIST` (default: localhost only).
+- Every network request is checked against `SLBA_DOMAIN_ALLOWLIST` (default: localhost only),
+  twice: a page-level route guard, and a browser-wide dead proxy that only allowlisted hosts
+  bypass, which also blocks Chrome/Edge background services (sign-in, updates).
+- Page content reaches the model only inside `<untrusted_page_content>`, which the page
+  cannot close or reopen.
 - Secrets come from environment variables as `SecretStr`; `.env` is git-ignored and
   blocked by a pre-commit hook; `detect-secrets` scans every commit.

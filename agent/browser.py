@@ -15,7 +15,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from playwright.async_api import BrowserContext, Playwright, Route, async_playwright
+from playwright.async_api import BrowserContext, Playwright, ProxySettings, Route, async_playwright
 
 from agent.config import BrowserChannel, Settings, get_settings
 from safety.allowlist import DomainAllowlist
@@ -34,6 +34,30 @@ _ISOLATION_ARGS = [
     "--disable-features=OptimizationHints,MediaRouter,Translate,AutofillServerCommunication",
     "--metrics-recording-only",
 ]
+
+
+# Nothing listens here, so any request sent to this "proxy" fails immediately.
+DEAD_PROXY = "http://127.0.0.1:9"
+
+
+def allowlist_proxy(allowlist: DomainAllowlist) -> ProxySettings:
+    """Browser-wide allowlist enforcement.
+
+    The flags above don't silence everything: in testing, branded Chrome still
+    contacted accounts.google.com, clients2.google.com, update.googleapis.com and
+    others. Routing all traffic to a dead proxy, with only allowlisted hosts
+    bypassing it, blocks those too, and overrides any system/env proxy.
+
+    Trade-off: allowlisted hosts connect directly, so a corporate proxy can't be
+    used for them. Revisit when real external sites are allowed.
+    """
+    hosts = sorted(allowlist.hosts)
+    bypass = ",".join([*hosts, *(f"*.{h}" for h in hosts if not _is_ip(h))])
+    return {"server": DEAD_PROXY, "bypass": bypass}
+
+
+def _is_ip(host: str) -> bool:
+    return host.replace(".", "").isdigit() or ":" in host
 
 
 class BlockedRequestLog:
@@ -85,6 +109,7 @@ async def browser_session(
             headless=cfg.slba_browser_headless,
             accept_downloads=False,
             args=_ISOLATION_ARGS,
+            proxy=allowlist_proxy(allowlist),
         )
         try:
             await context.route("**/*", _guard)

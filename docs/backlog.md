@@ -8,3 +8,6 @@ Ideas parked outside the current phase. Move items into a phase only via the SOP
 - `SLBA_TRACE_DIR`: optional Playwright trace recording in `browser_session()`.
 - Lock dependencies (uv or pip-tools) once the Phase 1 dependency set settles.
 - MiniWoB++ via BrowserGym as the first external benchmark (Phase 2).
+- Move to the anthropic SDK 2.x (pinned <1 for now; 2.x changes the http client type).
+- Scroll inside scrollable containers, not only the window.
+- Allow a corporate/upstream proxy for allowlisted external hosts (they connect directly today).

@@ -13,7 +13,8 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BrowserChannel = Literal["chrome", "msedge"]
-LLMProvider = Literal["anthropic", "openai", "ollama", "vllm"]
+# "fake" replays scripted actions: tests and offline demos, no API key needed.
+LLMProvider = Literal["anthropic", "openai", "ollama", "vllm", "fake"]
 
 
 class Settings(BaseSettings):
@@ -36,6 +37,14 @@ class Settings(BaseSettings):
     slba_llm_model: str = ""
     slba_llm_api_key: SecretStr = SecretStr("")
     slba_llm_base_url: str = ""
+    slba_llm_max_tokens: int = Field(default=1024, ge=64, le=8192)
+    # US$ per million tokens. Set from your provider's pricing page; 0 means cost
+    # is not tracked and the per-run cost budget cannot trigger.
+    slba_llm_price_in_per_mtok: float = Field(default=0.0, ge=0)
+    slba_llm_price_out_per_mtok: float = Field(default=0.0, ge=0)
+
+    # --- observation
+    slba_observation_max_chars: int = Field(default=12_000, ge=1_000)
 
     # --- browser / safety
     slba_browser_channel: BrowserChannel = "chrome"
