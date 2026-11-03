@@ -13,8 +13,11 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BrowserChannel = Literal["chrome", "msedge"]
+# All real providers speak the OpenAI-compatible chat-completions API.
+# "nim" = NVIDIA NIM hosted API; "vllm"/"ollama" = self-hosted (set SLBA_LLM_BASE_URL);
 # "fake" replays scripted actions: tests and offline demos, no API key needed.
-LLMProvider = Literal["anthropic", "openai", "ollama", "vllm", "fake"]
+LLMProvider = Literal["nim", "vllm", "ollama", "fake"]
+ToolChoiceMode = Literal["named", "required", "auto"]
 
 
 class Settings(BaseSettings):
@@ -33,10 +36,13 @@ class Settings(BaseSettings):
     redis_port: int = 6379
 
     # --- LLM
-    slba_llm_provider: LLMProvider = "anthropic"
+    slba_llm_provider: LLMProvider = "nim"
     slba_llm_model: str = ""
     slba_llm_api_key: SecretStr = SecretStr("")
-    slba_llm_base_url: str = ""
+    slba_llm_base_url: str = ""  # empty = provider default (NIM: integrate.api.nvidia.com)
+    # How to force the act tool. "named" is strictest; fall back to "required" or
+    # "auto" only if a model/server rejects named tool_choice.
+    slba_llm_tool_choice: ToolChoiceMode = "named"
     slba_llm_max_tokens: int = Field(default=1024, ge=64, le=8192)
     # US$ per million tokens. Set from your provider's pricing page; 0 means cost
     # is not tracked and the per-run cost budget cannot trigger.

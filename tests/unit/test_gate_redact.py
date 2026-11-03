@@ -85,7 +85,7 @@ async def test_confirmers() -> None:
 
 
 def test_redactor_masks_keys_and_values() -> None:
-    secret = "sk-ant-" + "real-key-123"  # pragma: allowlist secret
+    secret = "nvapi-" + "real-key-123"  # pragma: allowlist secret
     placeholder = "x" * 8  # value under a sensitive key name; must be masked
     red = SecretRedactor([secret])
     event = red(

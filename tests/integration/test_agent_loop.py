@@ -261,16 +261,17 @@ async def test_captcha_stops_the_run_before_any_llm_call(
 
 class _BrokenLLM(FakeLLM):
     async def decide(self, request: LLMRequest) -> LLMResponse:
-        raise LLMError("Anthropic API error: RateLimitError")
+        raise LLMError("NIM API error: HTTP 429: rate limited")
 
 
 async def test_llm_failure_aborts_and_is_recorded(
     session: AsyncSession, cfg: Settings, local_site: str
 ) -> None:
     rep = await go(session, cfg, f"{local_site}/form.html", _BrokenLLM([]))
-    assert rep.outcome is RunOutcome.ABORTED and rep.end_reason == "LLM call failed"
+    assert rep.outcome is RunOutcome.ABORTED
+    assert rep.end_reason == "LLM call failed: NIM API error: HTTP 429: rate limited"
     steps = await steps_of(session, rep)
-    assert len(steps) == 1 and "RateLimitError" in (steps[0].error or "")
+    assert len(steps) == 1 and "HTTP 429" in (steps[0].error or "")
 
 
 async def test_checker_overrides_agent_claim(

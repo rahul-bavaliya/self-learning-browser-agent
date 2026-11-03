@@ -16,7 +16,7 @@ Phase 1 deliberately has no learning. The learning loops need two things first: 
 |---|---|---|---|
 | D1 | Ledger schema + Alembic migrations | provenance/models.py, infra/alembic/ | upgrade and downgrade run clean on an empty database |
 | D2 | Ledger repository + retraction | provenance/ledger.py | retracting a run flags every descendant item (test) |
-| D3 | Swappable LLM interface | agent/llm/ | Anthropic client and a scripted FakeLLM behind one Protocol; tokens and cost recorded per call |
+| D3 | Swappable LLM interface | agent/llm/ | OpenAI-compatible client (NVIDIA NIM hosted; vLLM/Ollama later) and a scripted FakeLLM behind one Protocol; tokens and cost recorded per call |
 | D4 | Observation builder | agent/observe.py | accessibility snapshot with element refs, size-capped, wrapped as untrusted input |
 | D5 | Action schema + executor | agent/actions.py | 9 typed actions; an invalid action is recorded as a step error, never a crash |
 | D6 | Safety gate | safety/gate.py | risky actions need human confirmation; non-interactive mode denies them |
@@ -126,7 +126,7 @@ About 10 hours a week, four build weeks plus one buffer week.
 | Week | Deliverables | Work |
 |---|---|---|
 | 1 (Nov 9) | D1, D2 | Schema, Alembic, ledger repository, retraction query, integration tests against the compose Postgres |
-| 2 (Nov 16) | D3, D4, D5 | LLM Protocol with Anthropic and FakeLLM, aria observation and untrusted wrapper, action schema and executor |
+| 2 (Nov 16) | D3, D4, D5 | LLM Protocol with an OpenAI-compatible (NIM) client and FakeLLM, aria observation and untrusted wrapper, action schema and executor |
 | 3 (Nov 23) | D6, D7 | Safety gate, budgets, loop, evidence capture, CLI; first live run |
 | 4 (Nov 30) | D8, D9 | Local site, 12 tasks and checkers, eval runner, baseline run with 3 repeats |
 | 5 (Dec 7) | Buffer | Fix failing tasks, docs, README demo |

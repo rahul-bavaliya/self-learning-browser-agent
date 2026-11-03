@@ -121,3 +121,16 @@
 **Not yet measured:** a live run with a real model (needs `SLBA_LLM_API_KEY`).
 
 **Next:** week 4 — D8 local task site + 12 tasks with checkers, D9 eval runner + baseline.
+
+## LLM provider switch — 2026-11-03
+
+- First live run with the Anthropic API failed with HTTP 400 "credit balance is too low"
+  (account billing, not code). Decision: remove the Anthropic client and use NVIDIA NIM.
+- New `agent/llm/openai_compat.py`: one OpenAI-compatible chat-completions client (plain httpx)
+  with a single `act` function tool and named `tool_choice`; falls back to a JSON action in
+  `content` when a server's tool parser misses the call; retries 429/5xx. Default provider
+  `nim`; the same client serves `vllm` and `ollama` later via `SLBA_LLM_BASE_URL`, matching
+  the plan to move to self-hosted Qwen/Llama.
+- Removed `agent/llm/anthropic_client.py` and the `anthropic` dependency.
+- Run summary now says why an LLM call failed (`end_reason` carries the provider error).
+- Not yet measured: first live NIM run.

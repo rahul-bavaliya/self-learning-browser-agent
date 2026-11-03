@@ -48,8 +48,12 @@ python -m agent run "Preview a large order for Rahul" --start-url http://127.0.0
 python -m agent show <run-id>                                      # every step from the ledger
 ```
 
-Needs `SLBA_LLM_API_KEY`, `SLBA_LLM_MODEL` and, for cost tracking, the two
-`SLBA_LLM_PRICE_*_PER_MTOK` values. `SLBA_LLM_PROVIDER=fake` runs offline with no key.
+The default provider is **NVIDIA NIM** (OpenAI-compatible, `integrate.api.nvidia.com`).
+Set `SLBA_LLM_API_KEY` (an `nvapi-...` key from build.nvidia.com) and `SLBA_LLM_MODEL`
+(a NIM model with tool calling, e.g. `meta/llama-3.3-70b-instruct`). Later, point
+`SLBA_LLM_PROVIDER=vllm` or `ollama` plus `SLBA_LLM_BASE_URL` at a self-hosted model;
+the same client is used. `SLBA_LLM_PROVIDER=fake` runs offline with no key.
+If a model rejects forced tool calls, set `SLBA_LLM_TOOL_CHOICE=required` (or `auto`).
 Risky actions (form submits, buy/send/delete, password fields) stop and ask you;
 `--non-interactive` denies them instead. Evidence (snapshots, screenshots, confirmation
 decisions) is written under `.slba/evidence/<run-id>/`.

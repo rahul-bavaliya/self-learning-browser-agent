@@ -277,7 +277,7 @@ async def _steps(
                 None,
                 state,
             )
-            return state.stop(RunOutcome.ABORTED, "LLM call failed")
+            return state.stop(RunOutcome.ABORTED, f"LLM call failed: {exc}"[:300])
         state.cost += resp.cost_usd
 
         try:

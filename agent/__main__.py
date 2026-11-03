@@ -124,7 +124,7 @@ async def _show(run_id: uuid.UUID, cfg: Settings) -> int:
                 act = {k: v for k, v in st.action.items() if k != "reasoning"}
                 line = f"  {st.idx:>3} {st.result.value:<7} {act}"
                 if st.error:
-                    line += f"\n        ↳ {st.error[:160]}"
+                    line += f"\n        ↳ {st.error[:400]}"
                 print(line)
             n = len(await Ledger(session).run_items(run_id))
             print(f"  ledger items for this run: {n}")

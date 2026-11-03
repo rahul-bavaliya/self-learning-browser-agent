@@ -24,7 +24,10 @@
       "description": "Password for the local Redis container"
     },
     "SLBA_LLM_API_KEY": {
-      "description": "Hosted LLM API key (optional in Phase 0)"
+      "description": "NVIDIA NIM API key (nvapi-...) from build.nvidia.com"
+    },
+    "SLBA_LLM_MODEL": {
+      "description": "NIM model id with tool calling, e.g. meta/llama-3.3-70b-instruct"
     }
   },
   "customizations": {

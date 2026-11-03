@@ -10,6 +10,5 @@ Ideas parked outside the current phase. Move items into a phase only via the SOP
 - MiniWoB++ via BrowserGym as the first external benchmark (Phase 2).
 - Gate gap: a JS button that sends data without a form, under an innocent label, is not
   gated. Consider gating any click that triggers a non-GET request (needs request hooks).
-- Move to the anthropic SDK 2.x (pinned <1 for now; 2.x changes the http client type).
 - Scroll inside scrollable containers, not only the window.
 - Allow a corporate/upstream proxy for allowlisted external hosts (they connect directly today).
