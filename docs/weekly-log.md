@@ -27,3 +27,25 @@
 **Next**
 - Phase 1 defined (docs/phase-1.md, draft v0.1). Week 1: D1 ledger schema + Alembic, D2 ledger repository + retraction.
 - Add SOP-SLBA-001 to the project; check Phase 0 exit criteria; plan Phase 1 from it.
+
+## Week of 2026-11-09 — Phase 1, week 1 (D1, D2)
+
+**Done**
+- D1: ORM models (`provenance/models.py`) and Alembic migration `0001` for ledger_items,
+  ledger_edges, runs, steps, evidence. Upgrade → downgrade → upgrade clean; `alembic check` clean.
+- D2: `provenance/ledger.py` — start_run, record_step, record_evidence (SHA-256), finish_run
+  (trust update for the run and everything it produced), retract (recursive CTE, flags
+  descendants, deletes nothing), orphans (ledger-coverage gate), run_items.
+- Trust rules in `provenance/trust.py`: 0.5 start, 0.9 verified success, 0.1 failure.
+
+**Results (cloud workspace, local Postgres 16)**
+| Check | Result |
+|---|---|
+| Unit + integration tests | 32 passed |
+| Ledger coverage (`orphans()` empty after a full run) | pass |
+| Retract run → all steps and evidence flagged, other runs untouched | pass |
+
+**To confirm in the Codespace**
+- `alembic upgrade head` against the compose Postgres, then `SLBA_REQUIRE_DB=1 python -m pytest -m integration`.
+
+**Next:** week 2 — D3 LLM interface, D4 observation builder, D5 action schema.

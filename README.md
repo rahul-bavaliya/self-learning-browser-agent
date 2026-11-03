@@ -4,7 +4,7 @@ A Playwright agent for Chrome and Edge that gets better at websites through site
 a skill library and weekly LoRA consolidation, with a provenance ledger that traces
 every learned item back to its source. Architecture, phases and rules: `docs/` (SOP-SLBA-001).
 
-**Status: Phase 0 — foundations.** Repo, infra, tooling and a two-browser smoke test.
+**Status: Phase 1, week 1 — provenance ledger.** Plan: `docs/phase-1.md`.
 
 ## Layout
 
@@ -39,11 +39,20 @@ pre-commit install
 Already have Chrome and Edge installed system-wide? Playwright uses those; skip the
 install step (on Linux it may ask for sudo to replace them — say no if you'd rather not).
 
+## Database
+
+```bash
+alembic upgrade head          # create / update the schema (Postgres from docker compose)
+alembic downgrade base        # drop it again
+alembic check                 # models and migrations agree
+```
+
 ## Checks
 
 ```bash
-pytest tests/unit                     # fast, no browser
-SLBA_REQUIRE_ALL_BROWSERS=1 pytest -m smoke -v   # Chrome + Edge, must not skip
+python -m pytest tests/unit           # fast, no browser or DB
+python -m pytest -m integration      # ledger against a throwaway Postgres DB
+SLBA_REQUIRE_ALL_BROWSERS=1 python -m pytest -m smoke -v   # Chrome + Edge, must not skip
 pre-commit run --all-files
 ```
 

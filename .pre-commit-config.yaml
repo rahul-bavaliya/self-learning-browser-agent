@@ -26,6 +26,9 @@ repos:
           - "pydantic>=2.7"
           - "pydantic-settings>=2.3"
           - "playwright>=1.48"
+          - "sqlalchemy>=2.0.30"
+          - "alembic>=1.13"
+          - "psycopg[binary]>=3.2"
         exclude: ^(tests|dashboard|infra)/
 
   # Secrets only in env vars: block anything that looks like a credential.
