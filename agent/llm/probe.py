@@ -88,9 +88,12 @@ async def list_models(cfg: Settings) -> list[str]:
     return [m["id"] for m in resp.json().get("data", [])]
 
 
-async def main_async(models: Sequence[str], pause_s: float) -> int:
+async def main_async(models: Sequence[str], pause_s: float, timeout_s: float = 20.0) -> int:
     """Probe each model in turn and print a table."""
-    cfg = get_settings()
+    # Short timeout, no retries: a probe should answer in seconds, not minutes.
+    cfg = get_settings().model_copy(
+        update={"slba_llm_timeout_s": timeout_s, "slba_llm_max_retries": 0}
+    )
     try:  # fail fast on config (e.g. missing key) instead of once per model
         make_llm(cfg.model_copy(update={"slba_llm_model": models[0] if models else "probe"}))
     except LLMConfigError as exc:
@@ -105,10 +108,11 @@ async def main_async(models: Sequence[str], pause_s: float) -> int:
         if i:
             await asyncio.sleep(pause_s)  # stay under free-tier per-minute limits
         client = make_llm(cfg.model_copy(update={"slba_llm_model": model}))
+        print(f"  …   asking {model} (up to {timeout_s:.0f}s)", end="\r", flush=True)
         res = await probe_model(client)
         results.append(res)
         mark = "PASS" if res.ok else "fail"
-        print(f"{mark}  {res.seconds:5.1f}s  {res.model:<48} {res.detail}")
+        print(f"{mark}  {res.seconds:5.1f}s  {res.model:<48} {res.detail}".ljust(100), flush=True)
         auth_failures += "HTTP 401" in res.detail or "HTTP 403" in res.detail
         if auth_failures >= 2 and not any(r.ok for r in results):
             print("\nStopping: the API key is being rejected (HTTP 401/403), not the models.")
@@ -128,8 +132,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m agent.llm.probe", description=__doc__)
     p.add_argument("models", nargs="*", help="model ids; default: pick from the catalog")
     p.add_argument("--pause", type=float, default=2.0, help="seconds between calls")
+    p.add_argument("--timeout", type=float, default=20.0, help="seconds to wait per model")
     args = p.parse_args(argv)
-    return asyncio.run(main_async(args.models, args.pause))
+    return asyncio.run(main_async(args.models, args.pause, args.timeout))
 
 
 if __name__ == "__main__":

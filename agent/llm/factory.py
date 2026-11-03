@@ -35,4 +35,6 @@ def make_llm(settings: Settings | None = None) -> LLMClient:
         tool_choice=cfg.slba_llm_tool_choice,
         price_in_per_mtok=cfg.slba_llm_price_in_per_mtok,
         price_out_per_mtok=cfg.slba_llm_price_out_per_mtok,
+        timeout_s=cfg.slba_llm_timeout_s,
+        max_retries=cfg.slba_llm_max_retries,
     )

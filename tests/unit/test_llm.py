@@ -270,3 +270,23 @@ def test_probe_reports_missing_key_without_traceback(
     monkeypatch.setattr(probe, "get_settings", lambda: _settings(slba_llm_provider="nim"))
     assert probe.main(["some/model"]) == 2
     assert "SLBA_LLM_API_KEY is not set" in capsys.readouterr().err
+
+
+async def test_timeout_is_reported_as_llm_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+
+    with pytest.raises(LLMError, match="ReadTimeout"):
+        await _client(handler).decide(REQ)
+
+
+def test_factory_passes_timeout_and_retries() -> None:
+    client = make_llm(
+        _settings(
+            slba_llm_api_key=SecretStr(KEY),
+            slba_llm_model="m",
+            slba_llm_timeout_s=7,
+            slba_llm_max_retries=0,
+        )
+    )
+    assert isinstance(client, OpenAICompatClient) and client._max_retries == 0
