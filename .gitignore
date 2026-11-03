@@ -1,0 +1,19 @@
+.env
+.slba/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+test-results/
+playwright-report/
+# model weights / datasets live outside git
+*.safetensors
+*.bin
+data/

@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SLBA Smoke</title></head>
+<body>
+  <h1 id="title">SLBA smoke page</h1>
+  <label for="q">Query</label>
+  <input id="q" name="q">
+  <button id="go" type="button" onclick="document.getElementById('out').textContent = 'echo:' + document.getElementById('q').value">Go</button>
+  <p id="out"></p>
+  <!-- Off-allowlist resource: must be blocked by the agent's network guard. -->
+  <img id="tracker" src="https://example.com/pixel.png" alt="">
+</body>
+</html>
