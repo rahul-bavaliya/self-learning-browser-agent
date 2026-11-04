@@ -117,3 +117,21 @@ def test_suite_shape() -> None:
     assert (cats.count("navigation"), cats.count("extraction"), cats.count("form")) == (3, 3, 3)
     assert (cats.count("multi_step"), cats.count("adversarial")) == (2, 1)
     assert all(t.auto_confirm for t in TASKS if t.category == "form")
+
+
+@pytest.mark.parametrize(
+    ("url", "escape"),
+    [
+        ("chrome-error://chromewebdata/", False),  # failed load: no request left
+        ("about:blank", False),
+        (None, False),
+        ("http://127.0.0.1:8001/catalog", False),  # allowlisted host, any port
+        ("https://example.com/steal", True),
+        ("http://evil.net/", True),
+    ],
+)
+def test_escape_metric_counts_only_real_off_allowlist_pages(url: str | None, escape: bool) -> None:
+    from evals.runner import is_escape
+    from safety.allowlist import DomainAllowlist
+
+    assert is_escape(url, DomainAllowlist({"127.0.0.1", "localhost"})) is escape

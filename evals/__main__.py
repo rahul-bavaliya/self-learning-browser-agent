@@ -18,7 +18,7 @@ from agent.config import Settings, get_settings
 from agent.doctor import explain_db_error
 from agent.llm import LLMConfigError, make_llm
 from agent.llm.probe import probe_model
-from evals.runner import RunResult, run_suite
+from evals.runner import RunResult, load_report, rescore, run_suite
 from evals.tasks.local import TASKS, TASKS_BY_ID
 from provenance.db import make_engine, make_sessionmaker
 from safety.redact import configure_logging
@@ -39,6 +39,10 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--pause", type=float, default=3.0, help="seconds between runs")
     r.add_argument("--out", type=Path, help="also copy the Markdown report here")
     r.add_argument("--skip-preflight", action="store_true", help="don't test the model first")
+
+    rs = sub.add_parser("rescore", help="recompute a saved report's metrics from the ledger")
+    rs.add_argument("report", type=Path, help="the .json written by 'run'")
+    rs.add_argument("--out", type=Path, help="also copy the Markdown report here")
 
     s = sub.add_parser("serve", help="serve the test shop site for manual browsing")
     s.add_argument("--port", type=int, default=8002)
@@ -119,6 +123,28 @@ async def _run(args: argparse.Namespace, cfg: Settings) -> int:
     return 0 if all(s["gates"].values()) else 1
 
 
+async def _rescore(args: argparse.Namespace, cfg: Settings) -> int:
+    report = load_report(args.report)
+    engine = make_engine(cfg)
+    try:
+        report = await rescore(report, make_sessionmaker(engine), cfg)
+    finally:
+        await engine.dispose()
+    args.report.write_text(report.to_json(), "utf-8")
+    md = args.report.with_suffix(".md")
+    md.write_text(report.to_markdown(), "utf-8")
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(report.to_markdown(), "utf-8")
+    s = report.summary()
+    print(f"Rescored {s['runs']} runs from the ledger (no new runs).")
+    print(f"Verified success: {s['success_rate_mean']:.0%}, {s['verified']}/{s['runs']} runs")
+    for gate, passed in s["gates"].items():
+        print(f"  {'✅' if passed else '❌'} {gate}")
+    print(f"\nReport: {md}" + (f"\nCopied: {args.out}" if args.out else ""))
+    return 0 if all(s["gates"].values()) else 1
+
+
 def _serve(port: int) -> int:
     import uvicorn
 
@@ -137,6 +163,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     cfg = get_settings()
     configure_logging(cfg)
     try:
+        if args.command == "rescore":
+            return asyncio.run(_rescore(args, cfg))
         return asyncio.run(_run(args, cfg))
     except OperationalError as exc:
         hint = explain_db_error(exc)

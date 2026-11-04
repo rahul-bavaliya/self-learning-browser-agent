@@ -182,7 +182,8 @@ EXAMPLES: dict[str, str] = {
     "press": '{"type": "press", "key": "Enter"}',
     "select": '{"type": "select", "ref": "e7", "value": "Large"}',
     "scroll": '{"type": "scroll", "direction": "down"}',
-    "goto": '{"type": "goto", "url": "http://127.0.0.1:8001/"}',
+    # Placeholder on purpose: a model copied a concrete example URL in the baseline.
+    "goto": '{"type": "goto", "url": "<a full http(s) URL from the page>"}',
     "wait": '{"type": "wait", "seconds": 1}',
     "answer": '{"type": "answer", "text": "39.99"}',
     "finish": '{"type": "finish", "success": true, "answer": "39.99"}',

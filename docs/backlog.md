@@ -14,3 +14,6 @@ Ideas parked outside the current phase. Move items into a phase only via the SOP
   gated. Consider gating any click that triggers a non-GET request (needs request hooks).
 - Scroll inside scrollable containers, not only the window.
 - Allow a corporate/upstream proxy for allowlisted external hosts (they connect directly today).
+- Navigation-cycle guard: nav-01 and multi-01 bounced product <-> catalog (A-B-A-B) until the
+  step limit; the repeat guard only catches identical no-op actions. Phase 2 site memory may
+  fix this; if not, detect revisiting the same URL N times and tell the model.

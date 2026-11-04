@@ -116,3 +116,20 @@ async def test_report_renders_and_writes(
     assert "| nav-03 | navigation | 1/1 |" in md and "| ext-01 | extraction | 1/1 |" in md
     json_path, md_path = report.write(tmp_path / "reports")
     assert json_path.exists() and md_path.read_text() == md
+
+
+async def test_rescore_recomputes_from_the_ledger(
+    session: AsyncSession, migrated_db_url: str, cfg: Settings, tmp_path: Path
+) -> None:
+    from evals.runner import load_report, rescore
+
+    report = await suite(migrated_db_url, cfg, lambda task: oracle_llm(task.id), ["form-01"])
+    json_path, _ = report.write(tmp_path / "reports")
+    loaded = load_report(json_path)
+    loaded.results[0].gate_prompts = 0  # simulate a stale count
+    engine = make_engine(url=migrated_db_url)
+    try:
+        fixed = await rescore(loaded, make_sessionmaker(engine), cfg)
+    finally:
+        await engine.dispose()
+    assert fixed.results[0].gate_prompts == 1 and fixed.summary() == report.summary()
