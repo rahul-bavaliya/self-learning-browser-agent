@@ -201,6 +201,7 @@ class _State:
 
     cost: float = 0.0
     llm_failures_in_a_row: int = 0
+    invalid_in_a_row: int = 0
     answer: str | None = None
     finished: bool = False
     claimed_success: bool = False
@@ -336,7 +337,15 @@ async def _steps(
                 None,
                 state,
             )
+            state.invalid_in_a_row += 1
+            if state.invalid_in_a_row >= cfg.slba_max_invalid_actions:
+                return state.stop(
+                    RunOutcome.ABORTED,
+                    f"model returned {state.invalid_in_a_row} invalid actions in a row; "
+                    f"last: {error}"[:300],
+                )
             continue
+        state.invalid_in_a_row = 0
 
         # ---- gate, then act
         decision, element = await gate.check(page, action)

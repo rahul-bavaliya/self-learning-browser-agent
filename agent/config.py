@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     slba_max_cost_per_run: float = Field(default=0.50, ge=0)
     # Same action this many times in a row with no visible change = stuck; abort the run.
     slba_max_repeats: int = Field(default=5, ge=2, le=50)
+    # Invalid actions in a row before giving up: the model isn't recovering.
+    slba_max_invalid_actions: int = Field(default=4, ge=1, le=50)
 
     # --- evidence (screenshots + snapshots; DB keeps path and SHA-256)
     slba_evidence_root: Path = Path(".slba/evidence")

@@ -443,3 +443,17 @@ async def test_progress_feedback_does_not_trip_on_real_progress(
     rep = await go(session, cfg, f"{local_site}/form.html", llm)
     assert rep.outcome is RunOutcome.SUCCESS and rep.steps == 4
     assert all("no visible change" not in r.user for r in llm.requests)
+
+
+async def test_run_stops_after_too_many_invalid_actions_in_a_row(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    llm = FakeLLM(lambda req, i: {"type": "teleport"})
+    rep = await go(
+        session,
+        cfg.model_copy(update={"slba_max_invalid_actions": 3}),
+        f"{local_site}/form.html",
+        llm,
+    )
+    assert rep.outcome is RunOutcome.ABORTED and rep.steps == 3 and rep.errors == 3
+    assert rep.end_reason.startswith("model returned 3 invalid actions in a row")

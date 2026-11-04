@@ -61,7 +61,6 @@ def test_nulls_from_flat_schema_are_ignored() -> None:
         ({"type": "click", "ref": "#submit"}, "ref"),
         ({"type": "click", "ref": "f3"}, "ref"),
         ({"type": "click", "ref": "fe12"}, "ref"),
-        ({"type": "click", "ref": "e1", "text": "extra"}, "text"),
         ({"type": "goto", "url": "file:///etc/passwd"}, "url"),
         ({"type": "goto", "url": "javascript:alert(1)"}, "url"),
         ({"type": "press", "key": "Control+w"}, "not allowed"),
@@ -84,3 +83,42 @@ def test_actions_are_immutable() -> None:
 def test_finish_and_press_types() -> None:
     assert isinstance(parse_action({"type": "finish", "success": False}), Finish)
     assert isinstance(parse_action({"type": "press", "key": "Escape"}), Press)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # Flat-schema filler on fields the action doesn't use is ignored.
+        (
+            {
+                "type": "finish",
+                "success": True,
+                "answer": "ok",
+                "ref": "",
+                "key": "",
+                "url": "",
+                "direction": "",
+                "seconds": 0,
+                "text": "",
+                "value": "",
+            },
+            Finish(type="finish", success=True, answer="ok"),
+        ),
+        ({"type": "click", "ref": "e4", "text": "", "key": ""}, Click(type="click", ref="e4")),
+        # Numbers where text is expected become text.
+        (
+            {"type": "finish", "success": True, "answer": 4},
+            Finish(type="finish", success=True, answer="4"),
+        ),
+        ({"type": "Finish ", "success": True}, Finish(type="finish", success=True)),
+    ],
+)
+def test_tolerant_to_irrelevant_fields_and_numbers(raw: dict[str, Any], expected: Any) -> None:
+    assert parse_action(raw) == expected
+
+
+def test_relevant_fields_stay_strict_and_errors_show_an_example() -> None:
+    with pytest.raises(ActionParseError, match=r'ref.*A valid click looks like: \{"type": "click"'):
+        parse_action({"type": "click", "ref": ""})
+    with pytest.raises(ActionParseError, match="A valid finish looks like"):
+        parse_action({"type": "finish"})

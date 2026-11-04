@@ -29,9 +29,23 @@ Ref = Annotated[
 
 # Keys the agent may press. No modifier shortcuts (Ctrl+W, Alt+F4, devtools...).
 ALLOWED_KEYS = frozenset(
-    {"Enter", "Tab", "Escape", "Backspace", "Delete", "Space",
-     "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"}
-)  # fmt: skip
+    {
+        "Enter",
+        "Tab",
+        "Escape",
+        "Backspace",
+        "Delete",
+        "Space",
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "PageUp",
+        "PageDown",
+        "Home",
+        "End",
+    }
+)
 
 ACTION_TIMEOUT_MS = 5_000
 _SCROLL_JS = "s => window.scrollBy({top: s * innerHeight * 0.8, behavior: 'instant'})"
@@ -123,6 +137,17 @@ Action = Annotated[
 ]
 ACTION_TYPES = ("click", "fill", "press", "select", "scroll", "goto", "wait", "answer", "finish")
 _ADAPTER: TypeAdapter[Action] = TypeAdapter(Action)
+_MODELS: dict[str, type[_Base]] = {
+    "click": Click,
+    "fill": Fill,
+    "press": Press,
+    "select": Select,
+    "scroll": Scroll,
+    "goto": Goto,
+    "wait": Wait,
+    "answer": Answer,
+    "finish": Finish,
+}
 
 
 class ActionParseError(ValueError):
@@ -138,14 +163,55 @@ def parse_action(raw: dict[str, Any] | None) -> Action:
     """
     if not raw:
         raise ActionParseError("no action returned; call the act tool with exactly one action")
-    payload = {k: v for k, v in raw.items() if v is not None}
+    payload = _clean(raw)
     try:
         return _ADAPTER.validate_python(payload)
     except ValidationError as exc:
         problems = "; ".join(
             f"{_field(e['loc'])}: {e['msg']}" for e in exc.errors(include_url=False)
         )
-        raise ActionParseError(f"invalid action: {problems}") from None
+        example = EXAMPLES.get(str(payload.get("type", "")))
+        hint = f". A valid {payload['type']} looks like: {example}" if example else ""
+        raise ActionParseError(f"invalid action: {problems}{hint}") from None
+
+
+# One correct call per type, shown to the model when its call is invalid.
+EXAMPLES: dict[str, str] = {
+    "click": '{"type": "click", "ref": "e12"}',
+    "fill": '{"type": "fill", "ref": "e3", "text": "Rahul"}',
+    "press": '{"type": "press", "key": "Enter"}',
+    "select": '{"type": "select", "ref": "e7", "value": "Large"}',
+    "scroll": '{"type": "scroll", "direction": "down"}',
+    "goto": '{"type": "goto", "url": "http://127.0.0.1:8001/"}',
+    "wait": '{"type": "wait", "seconds": 1}',
+    "answer": '{"type": "answer", "text": "39.99"}',
+    "finish": '{"type": "finish", "success": true, "answer": "39.99"}',
+}
+
+
+def _clean(raw: dict[str, Any]) -> dict[str, Any]:
+    """Make a model's tool call fit the chosen action before strict validation.
+
+    The flat tool schema shows every field, so models often send fields that don't
+    apply to the action (``"ref": ""`` on a finish) or numbers where text is
+    expected (``"answer": 4``). Fields that don't belong to the chosen type are
+    dropped; fields that do belong are still validated strictly.
+    """
+    payload = {k: v for k, v in raw.items() if v is not None}
+    kind = payload.get("type")
+    if isinstance(kind, str):
+        kind = kind.strip().lower()
+        payload["type"] = kind
+    model = _MODELS.get(kind) if isinstance(kind, str) else None
+    if model is None:
+        return payload  # unknown type: let validation explain
+    allowed = set(model.model_fields)
+    payload = {k: v for k, v in payload.items() if k in allowed}
+    for key in ("text", "answer", "value"):
+        value = payload.get(key)
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            payload[key] = str(value)
+    return payload
 
 
 def _field(loc: tuple[int | str, ...]) -> str:
