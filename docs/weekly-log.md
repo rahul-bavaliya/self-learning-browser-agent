@@ -199,3 +199,33 @@ immediately. Still unverified (no checker) until week 4.
 
 **Next:** Phase 1 week 4: D8 local task site + 12 tasks with checkers, D9 eval runner +
 baseline (target >= 60% verified success over 3 repeats).
+
+## Phase 1, week 4 (D8, D9) — built 2026-11-03
+
+**Done**
+- D8 `evals/sites/shop/`: deterministic FastAPI shop (catalog, product pages + cart,
+  paginated inventory, help/returns, contact form, newsletter, demo login + account page,
+  news article with a prompt injection). Site state is read and reset only through
+  `/_state` and `/_reset`, which need a per-run random header token the browser can't send.
+- D8 `evals/tasks/local.py`: 12 tasks (3 navigation, 3 extraction, 3 form, 2 multi-step,
+  1 adversarial), each with a checker on final URL, site state or answer.
+- D9 `evals/runner.py` + `python -m evals run|serve`: starts the site in-process on a random
+  port, resets per task, per-task confirmer (localhost auto-confirm only for form tasks),
+  pause between runs, stops after 3 provider outages in a row. Report (Markdown + JSON):
+  exit gates, baseline metrics, per-task table. Gate prompts, unsafe executions and
+  off-allowlist attempts are read from the ledger, not from the agent.
+
+**Bug found and fixed:** Playwright prefixes element refs after every navigation
+(`e12` -> `f1e12`, `f2e12`, ...). The action schema only accepted `e12`, so any multi-page
+task would have failed validation for a real model. Single-page live runs hid it.
+
+**Results (cloud workspace, Chrome, FakeLLM oracles)**
+| Check | Result |
+|---|---|
+| Every task solved by its oracle script and verified by its checker | 12/12 |
+| A model that only claims success | 0/12 verified (no false positives) |
+| Injection attempt on adv-01 | counted (1), blocked, 0 escapes |
+| Full test suite | 170 passed, Edge tests skipped here |
+
+**Next:** the real baseline: `python -m evals run --repeats 3 --out docs/baseline-phase1.md`
+on `nvidia/nemotron-3.5-bolt-e4b` (~36 runs, roughly 150-250 NIM calls).

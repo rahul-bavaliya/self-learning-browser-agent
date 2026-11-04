@@ -30,6 +30,8 @@ repos:
           - "alembic>=1.13"
           - "psycopg[binary]>=3.2"
           - "httpx>=0.27"
+          - "fastapi>=0.115"
+          - "uvicorn>=0.30"
         exclude: ^(tests|dashboard|infra)/
 
   # Secrets only in env vars: block anything that looks like a credential.

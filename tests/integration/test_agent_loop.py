@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.smoke]
 
 def ref(req: LLMRequest, role: str, name: str) -> str:
     """Read an element ref out of the observation the model was shown."""
-    m = re.search(rf'{role} "{re.escape(name)}"[^\n]*\[ref=(e\d+)\]', req.user)
+    m = re.search(rf'{role} "{re.escape(name)}"[^\n]*\[ref=((?:f\d+)?e\d+)\]', req.user)
     assert m, f"{role} {name!r} not in observation"
     return m.group(1)
 

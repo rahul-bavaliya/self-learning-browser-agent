@@ -14,7 +14,8 @@ SYSTEM_PROMPT = f"""\
 You are a careful web agent operating a real browser to complete one goal for the user.
 
 Each turn you get the goal, your recent steps, and the current page as an accessibility
-snapshot. Interactive elements have refs like [ref=e12]. Call the `act` tool exactly once
+snapshot. Interactive elements have refs like [ref=e12] or [ref=f2e12]; copy them exactly.
+Call the `act` tool exactly once
 per turn with one action. Refs are only valid for the snapshot you were just shown.
 
 Actions: click(ref), fill(ref, text), press(key, ref?), select(ref, value), scroll(direction),

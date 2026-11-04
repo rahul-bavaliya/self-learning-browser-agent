@@ -22,6 +22,7 @@ from agent.actions import (
     "raw",
     [
         {"type": "click", "ref": "e12"},
+        {"type": "click", "ref": "f3e12"},  # ref after a navigation
         {"type": "fill", "ref": "e3", "text": "kettle"},
         {"type": "press", "key": "Enter"},
         {"type": "press", "key": "Tab", "ref": "e1"},
@@ -58,6 +59,8 @@ def test_nulls_from_flat_schema_are_ignored() -> None:
         ({"type": "teleport"}, "invalid action"),
         ({"type": "click"}, "ref"),
         ({"type": "click", "ref": "#submit"}, "ref"),
+        ({"type": "click", "ref": "f3"}, "ref"),
+        ({"type": "click", "ref": "fe12"}, "ref"),
         ({"type": "click", "ref": "e1", "text": "extra"}, "text"),
         ({"type": "goto", "url": "file:///etc/passwd"}, "url"),
         ({"type": "goto", "url": "javascript:alert(1)"}, "url"),

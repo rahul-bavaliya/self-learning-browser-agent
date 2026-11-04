@@ -23,7 +23,7 @@ ALLOW = DomainAllowlist({"127.0.0.1", "localhost"})
 
 def ref_for(obs: Observation, role: str, name: str) -> str:
     """Find the ref of the element with this role and accessible name."""
-    m = re.search(rf'{role} "{re.escape(name)}"[^\n]*\[ref=(e\d+)\]', obs.snapshot)
+    m = re.search(rf'{role} "{re.escape(name)}"[^\n]*\[ref=((?:f\d+)?e\d+)\]', obs.snapshot)
     assert m, f"no {role} {name!r} in snapshot:\n{obs.snapshot}"
     return m.group(1)
 

@@ -4,7 +4,7 @@ A Playwright agent for Chrome and Edge that gets better at websites through site
 a skill library and weekly LoRA consolidation, with a provenance ledger that traces
 every learned item back to its source. Architecture, phases and rules: `docs/` (SOP-SLBA-001).
 
-**Status: Phase 1, week 3 — the agent runs.** Plan: `docs/phase-1.md`.
+**Status: Phase 1, week 4 — eval suite ready; baseline run next.** Plan: `docs/phase-1.md`.
 
 ## Layout
 
@@ -63,6 +63,21 @@ Slow providers are handled: timeouts and 429/5xx are retried, the run tolerates
 Risky actions (form submits, buy/send/delete, password fields) stop and ask you;
 `--non-interactive` denies them instead. Evidence (snapshots, screenshots, confirmation
 decisions) is written under `.slba/evidence/<run-id>/`.
+
+## Evaluate (Phase 1 baseline)
+
+```bash
+python -m evals run --repeats 3 --out docs/baseline-phase1.md   # 12 tasks x 3 = 36 runs
+python -m evals run --repeats 1 --tasks nav-01,form-01          # a quick subset
+python -m evals serve                                           # browse the test shop yourself
+```
+
+The runner starts the test shop site itself on a random local port, resets it before every
+task, and judges each run with the task's checker (final URL, site state or the answer),
+never the agent's own claim. Reports go to `.slba/reports/` (Markdown + JSON) with the
+Phase 1 exit gates: verified success >= 60%, ledger coverage 100%, no unsafe actions, no
+injection escapes. `--pause` (default 3s) and `--max-steps` (default 15) keep free-tier
+quotas in check.
 
 ## Database
 

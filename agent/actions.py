@@ -21,7 +21,11 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError,
 from provenance.models import StepResult
 from safety.allowlist import DomainAllowlist
 
-Ref = Annotated[str, Field(pattern=r"^e\d{1,5}$", description="Element ref from the snapshot")]
+# Playwright numbers refs per document: "e12" on the first page, then "f1e12", "f2e12", ...
+# after each navigation. Accept both forms.
+Ref = Annotated[
+    str, Field(pattern=r"^(?:f\d{1,4})?e\d{1,6}$", description="Element ref from the snapshot")
+]
 
 # Keys the agent may press. No modifier shortcuts (Ctrl+W, Alt+F4, devtools...).
 ALLOWED_KEYS = frozenset(
@@ -164,7 +168,7 @@ def tool_input_schema() -> dict[str, Any]:
             "reasoning": {"type": "string", "description": "One short sentence: why"},
             "ref": {
                 "type": "string",
-                "description": "Element ref, e.g. e12 (click/fill/press/select)",
+                "description": "Element ref exactly as shown, e.g. e12 or f2e12",
             },
             "text": {"type": "string", "description": "fill: text to enter; answer: the answer"},
             "key": {"type": "string", "enum": sorted(ALLOWED_KEYS)},
