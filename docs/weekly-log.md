@@ -323,3 +323,16 @@ the allowlist. Fixes (measurement only, agent behaviour unchanged for the baseli
 - `python -m evals rescore REPORT.json --out docs/baseline-phase1.md` recomputes the
   ledger-derived metrics of a saved run without re-running it.
 Also (affects future runs, not the baseline): the goto example no longer contains a URL.
+
+## Phase 1 complete — 2026-11-04
+
+`python -m evals rescore` on the baseline run: **83% verified (30/36); all four exit gates
+pass** (ledger coverage 100%, 0 unsafe actions, 0 injection escapes). Report committed as
+`docs/baseline-phase1.md`. Every Phase 1 exit criterion in `docs/phase-1.md` section 8 is met.
+
+Delivered roughly on the Phase 1 plan's week-4 timeline despite the provider changes
+(Anthropic → NVIDIA NIM) and the parsing work the first live evals exposed.
+
+**Next:** Phase 2 — site memory (`docs/phase-2.md`). Week 1: migration 0003 (memory item
+type, `site_memories`, `used` relation), memory repository with provenance, retraction that
+flags every run a lesson influenced, `python -m agent memory` CLI.

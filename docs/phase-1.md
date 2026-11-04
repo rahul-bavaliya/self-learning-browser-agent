@@ -2,6 +2,9 @@
 
 _Draft v0.1 · 3 November 2026 · Rahul_
 
+> **Complete — 4 November 2026.** All exit criteria met. Baseline: 83% verified (30/36) on
+> `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`; see `docs/baseline-phase1.md`.
+
 > **Status:** Defined without SOP-SLBA-001, which is not yet in the project. Where this draft and the SOP disagree, the SOP wins; section 11 lists what to reconcile.
 
 ## 1. Goal

@@ -4,7 +4,8 @@ A Playwright agent for Chrome and Edge that gets better at websites through site
 a skill library and weekly LoRA consolidation, with a provenance ledger that traces
 every learned item back to its source. Architecture, phases and rules: `docs/` (SOP-SLBA-001).
 
-**Status: Phase 1, week 4 — eval suite ready; baseline run next.** Plan: `docs/phase-1.md`.
+**Status: Phase 1 complete (baseline 83% verified, all gates pass). Phase 2 — site memory — defined.**
+Plans: `docs/phase-1.md`, `docs/phase-2.md`. Baseline: `docs/baseline-phase1.md`.
 
 ## Layout
 
