@@ -17,6 +17,7 @@ from sqlalchemy.exc import OperationalError
 from agent.config import Settings, get_settings
 from agent.doctor import explain_db_error
 from agent.llm import LLMConfigError, make_llm
+from agent.llm.probe import probe_model
 from evals.runner import RunResult, run_suite
 from evals.tasks.local import TASKS, TASKS_BY_ID
 from provenance.db import make_engine, make_sessionmaker
@@ -37,6 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--max-steps", type=int, default=15, help="per run (default 15)")
     r.add_argument("--pause", type=float, default=3.0, help="seconds between runs")
     r.add_argument("--out", type=Path, help="also copy the Markdown report here")
+    r.add_argument("--skip-preflight", action="store_true", help="don't test the model first")
 
     s = sub.add_parser("serve", help="serve the test shop site for manual browsing")
     s.add_argument("--port", type=int, default=8002)
@@ -69,6 +71,14 @@ async def _run(args: argparse.Namespace, cfg: Settings) -> int:
     except LLMConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    if not args.skip_preflight and cfg.slba_llm_provider != "fake":
+        # One real call before spending quota on the suite: catches a wrong key,
+        # retired model or unreachable provider in seconds.
+        check = await probe_model(llm)
+        if not check.valid:
+            print(f"error: preflight call to {llm.model} failed: {check.detail}", file=sys.stderr)
+            return 2
+        print(f"preflight ok: {llm.model} answered in {check.seconds:.1f}s")
 
     total = len(tasks) * args.repeats
     print(

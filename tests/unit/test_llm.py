@@ -365,3 +365,18 @@ async def test_retry_after_header_is_honoured_and_capped(monkeypatch: pytest.Mon
 def test_connect_timeout_is_short() -> None:
     client = OpenAICompatClient(model="m", api_key=SecretStr(KEY), timeout_s=60)
     assert client._timeout.connect == 10.0 and client._timeout.read == 60.0
+
+
+def test_nim_rejects_a_non_nvidia_key_with_a_clear_message() -> None:
+    for wrong in ("sk-" + "x" * 20, "gsk_" + "x" * 20):  # pragma: allowlist secret
+        with pytest.raises(LLMConfigError, match="not an NVIDIA NIM key"):
+            make_llm(_settings(slba_llm_api_key=SecretStr(wrong), slba_llm_model="m"))
+    # Self-hosted providers accept any key (or none).
+    make_llm(
+        _settings(
+            slba_llm_provider="vllm",
+            slba_llm_model="m",
+            slba_llm_base_url="http://localhost:8000/v1",
+            slba_llm_api_key=SecretStr("anything-goes"),
+        )
+    )
