@@ -12,7 +12,10 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from sqlalchemy.exc import OperationalError
+
 from agent.config import Settings, get_settings
+from agent.doctor import explain_db_error
 from agent.llm import LLMConfigError, make_llm
 from evals.runner import RunResult, run_suite
 from evals.tasks.local import TASKS, TASKS_BY_ID
@@ -123,7 +126,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _serve(args.port)
     cfg = get_settings()
     configure_logging(cfg)
-    return asyncio.run(_run(args, cfg))
+    try:
+        return asyncio.run(_run(args, cfg))
+    except OperationalError as exc:
+        hint = explain_db_error(exc)
+        if hint is None:
+            raise
+        print(hint, file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
