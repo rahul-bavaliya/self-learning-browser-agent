@@ -122,3 +122,12 @@ def test_relevant_fields_stay_strict_and_errors_show_an_example() -> None:
         parse_action({"type": "click", "ref": ""})
     with pytest.raises(ActionParseError, match="A valid finish looks like"):
         parse_action({"type": "finish"})
+
+
+def test_answer_and_text_are_interchangeable() -> None:
+    from agent.actions import Answer
+
+    assert parse_action({"type": "answer", "answer": "4"}) == Answer(type="answer", text="4")
+    assert parse_action({"type": "finish", "success": True, "text": "4"}) == Finish(
+        type="finish", success=True, answer="4"
+    )

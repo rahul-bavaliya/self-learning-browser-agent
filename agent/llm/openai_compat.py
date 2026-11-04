@@ -10,8 +10,10 @@ server's tool parser misses it; we fall back to the first JSON object there.
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
+import re
 import time
 from typing import Any, Literal
 
@@ -138,7 +140,7 @@ class OpenAICompatClient:
             raise LLMError(f"{self._label} API error: response has no choices") from None
 
         content = message.get("content") or ""
-        action_input = _from_tool_calls(message.get("tool_calls")) or _json_in_text(content)
+        action_input = _from_tool_calls(message.get("tool_calls")) or action_in_text(content)
         usage = data.get("usage") or {}
         t_in = int(usage.get("prompt_tokens") or 0)
         t_out = int(usage.get("completion_tokens") or 0)
@@ -233,6 +235,93 @@ def _from_tool_calls(tool_calls: Any) -> dict[str, Any] | None:
                 return None
             return parsed if isinstance(parsed, dict) else None
     return None
+
+
+def action_in_text(text: str) -> dict[str, Any] | None:
+    """Recover an ``act`` call that the server's tool parser left in the reply text.
+
+    Seen from NIM-hosted models when the tool parser misses the call:
+    - JSON, possibly behind a special token: ``<|tool_call>{"type": "finish", ...}``
+    - function-call style: ``act(type="answer", answer="5")``
+    - the model's own quote tokens: ``act{type:<|"|>finish<|"|>,success:true}``
+    """
+    if not text:
+        return None
+    text = text.replace('<|"|>', '"')
+    return _json_in_text(text) or _call_in_text(text)
+
+
+_CALL_RE = re.compile(r"\bact\s*([({])")
+_BARE_KEY_RE = re.compile(r"([{,]\s*)([A-Za-z_]\w*)\s*:")
+_LITERALS = {"true": True, "false": False, "null": None, "none": None}
+
+
+def _call_in_text(text: str) -> dict[str, Any] | None:
+    """Parse ``act(k=v, ...)`` or ``act{k: v, ...}`` into a dict with a ``type``."""
+    for m in _CALL_RE.finditer(text):
+        close = ")" if m.group(1) == "(" else "}"
+        body = _balanced(text, m.end() - 1, m.group(1), close)
+        if body is None:
+            continue
+        parsed = _kwargs(body) if close == ")" else _bare_json(body)
+        if parsed and "type" in parsed:
+            return parsed
+    return None
+
+
+def _balanced(text: str, start: int, open_ch: str, close_ch: str) -> str | None:
+    """Contents between the bracket at ``start`` and its match, respecting quotes."""
+    depth, quote, i = 0, "", start
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+        elif ch == open_ch:
+            depth += 1
+        elif ch == close_ch:
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : i]
+        i += 1
+    return None
+
+
+def _kwargs(body: str) -> dict[str, Any] | None:
+    """``type="answer", answer="5"`` -> dict, via the Python parser (no eval)."""
+    try:
+        call = ast.parse(f"f({body})", mode="eval").body
+    except SyntaxError:
+        return None
+    if not isinstance(call, ast.Call):
+        return None
+    out: dict[str, Any] = {}
+    for kw in call.keywords:
+        if kw.arg is None:
+            return None
+        value = kw.value
+        if isinstance(value, ast.Name) and value.id.lower() in _LITERALS:
+            out[kw.arg] = _LITERALS[value.id.lower()]
+            continue
+        try:
+            out[kw.arg] = ast.literal_eval(value)
+        except ValueError:
+            return None
+    return out
+
+
+def _bare_json(body: str) -> dict[str, Any] | None:
+    """``type:"finish",success:true`` (unquoted keys) -> dict."""
+    try:
+        obj = json.loads(_BARE_KEY_RE.sub(r'\1"\2":', "{" + body + "}"))
+    except ValueError:
+        return None
+    return obj if isinstance(obj, dict) else None
 
 
 def _json_in_text(text: str) -> dict[str, Any] | None:

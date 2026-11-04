@@ -457,3 +457,31 @@ async def test_run_stops_after_too_many_invalid_actions_in_a_row(
     )
     assert rep.outcome is RunOutcome.ABORTED and rep.steps == 3 and rep.errors == 3
     assert rep.end_reason.startswith("model returned 3 invalid actions in a row")
+
+
+async def test_same_answer_twice_ends_the_run_and_the_checker_decides(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    llm = FakeLLM(lambda req, i: {"type": "answer", "text": "Rahul/Large"})
+
+    async def checker(page: Page, answer: str | None) -> bool:
+        return answer == "Rahul/Large"
+
+    rep = await go(session, cfg, f"{local_site}/form.html", llm, checker=checker)
+    assert rep.steps == 2 and rep.answer == "Rahul/Large" and rep.verified
+    assert "claimed success by repeating its answer" in rep.end_reason
+    # After the first answer the model was told to finish.
+    assert "answer recorded; call finish to end the run" in llm.requests[1].user
+
+
+async def test_different_answers_do_not_end_the_run(
+    session: AsyncSession, cfg: Settings, local_site: str
+) -> None:
+    answers = ["3", "4", "5"]
+    llm = FakeLLM(
+        lambda req, i: (
+            {"type": "answer", "text": answers[i]} if i < 3 else {"type": "finish", "success": True}
+        )
+    )
+    rep = await go(session, cfg, f"{local_site}/form.html", llm)
+    assert rep.steps == 4 and rep.answer == "5"

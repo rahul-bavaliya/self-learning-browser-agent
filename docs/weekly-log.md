@@ -263,3 +263,23 @@ not starting `nvapi-` up front, and `evals run` makes one preflight call before 
 
 **Next:** re-run `python -m evals run --repeats 1`; if parsing was the cause, success should
 rise sharply. Then the 3-repeat baseline.
+
+## Second eval pass — 2026-11-04
+
+Same command and model after tolerant parsing: **42% (5/12)** verified (was 25%).
+Passed: nav-03, ext-01, form-01, form-02, form-03. All safety gates passed.
+
+`agent show` on the failures showed the model usually *had* the result but its call was lost:
+- Tool call left in the reply text in formats NIM's parser missed:
+  `act(type="answer", answer="5")`, `act{type:<|"|>finish<|"|>,success:true}`
+  (ext-02 had computed 116, ext-03 4; nav-01, nav-02, multi-02 had reached the goal).
+- `answer` sent as `"answer": "4"` instead of `"text"`.
+- Answer loops: ext-03 answered "4" 10 times and adv-01 the correct headline 12 times
+  without ever calling finish (the repeat guard skips answer actions).
+- multi-01: genuine planning failure (added one item, answered 24.50).
+
+Fixes:
+- Recover `act(...)` / `act{...}` calls (incl. `<|"|>` quote tokens) from reply text.
+- `answer` <-> `text` aliases on answer and finish.
+- After an answer, history says "answer recorded; call finish"; the same answer twice in a
+  row ends the run with that answer. The checker still decides; end_reason records it.

@@ -205,6 +205,11 @@ def _clean(raw: dict[str, Any]) -> dict[str, Any]:
     model = _MODELS.get(kind) if isinstance(kind, str) else None
     if model is None:
         return payload  # unknown type: let validation explain
+    # Models mix up the two names for the same thing.
+    if kind == "answer" and "text" not in payload and "answer" in payload:
+        payload["text"] = payload.pop("answer")
+    if kind == "finish" and "answer" not in payload and "text" in payload:
+        payload["answer"] = payload.pop("text")
     allowed = set(model.model_fields)
     payload = {k: v for k, v in payload.items() if k in allowed}
     for key in ("text", "answer", "value"):

@@ -202,6 +202,7 @@ class _State:
     cost: float = 0.0
     llm_failures_in_a_row: int = 0
     invalid_in_a_row: int = 0
+    auto_finished: bool = False  # ended on a repeated answer, not a finish call
     answer: str | None = None
     finished: bool = False
     claimed_success: bool = False
@@ -222,6 +223,8 @@ class _State:
         if self.stopped is not None:
             return self.stopped
         claim = "success" if self.claimed_success else "failure"
+        if self.auto_finished:
+            claim = "success by repeating its answer"
         if has_checker:
             result = "passed" if verified else "failed"
             outcome = RunOutcome.SUCCESS if verified else RunOutcome.FAILURE
@@ -404,6 +407,15 @@ async def _steps(
         state.last_action = summary if acted else None
         state.before_last_action = obs.snapshot if acted else None
 
+        if action.type == "answer" and outcome.answer:
+            if outcome.answer == state.answer:
+                # Same answer twice in a row: the model is done but won't say so.
+                # End with that answer; the task checker, not the model, decides.
+                state.finished = state.claimed_success = state.auto_finished = True
+                return None
+            state.history[-1] = dataclasses.replace(
+                state.history[-1], note="answer recorded; call finish to end the run"
+            )
         if outcome.answer:
             state.answer = outcome.answer
         if outcome.finished:

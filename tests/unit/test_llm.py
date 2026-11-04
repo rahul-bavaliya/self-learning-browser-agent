@@ -380,3 +380,55 @@ def test_nim_rejects_a_non_nvidia_key_with_a_clear_message() -> None:
             slba_llm_api_key=SecretStr("anything-goes"),
         )
     )
+
+
+# Exact reply texts seen from nvidia/nemotron-3.5-bolt-e4b on NIM (2026-11-04 eval).
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (
+            'act(type="answer",reasoning="Count the rows where the color cell contains \'red\'",'
+            'answer="5")',
+            {
+                "type": "answer",
+                "reasoning": "Count the rows where the color cell contains 'red'",
+                "answer": "5",
+            },
+        ),
+        (
+            'act{reasoning:<|"|>The goal was to go to page 3.<|"|>,type:<|"|>finish<|"|>,'
+            "success:true}",
+            {"reasoning": "The goal was to go to page 3.", "type": "finish", "success": True},
+        ),
+        (
+            'act(type="finish",reasoning="The page confirms \\\'Welcome, Rahul B.\\\'",success=true)',  # noqa: E501
+            {
+                "type": "finish",
+                "reasoning": "The page confirms 'Welcome, Rahul B.'",
+                "success": True,
+            },
+        ),
+        (
+            '<|tool_call>{"type": "answer", "reasoning": "r", "answer": "4"}',
+            {"type": "answer", "reasoning": "r", "answer": "4"},
+        ),
+        (
+            'act(type="answer",ref="f1e65",text="116",reasoning="sum (10+17+1) is 116")',
+            {"type": "answer", "ref": "f1e65", "text": "116", "reasoning": "sum (10+17+1) is 116"},
+        ),
+    ],
+)
+def test_text_form_tool_calls_are_recovered(content: str, expected: dict[str, Any]) -> None:
+    from agent.llm.openai_compat import action_in_text
+
+    assert action_in_text(content) == expected
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["I think I should look around first.", "act(", "react(type='x')", "act(**kw)", "act(x=open)"],
+)
+def test_text_without_a_call_is_not_an_action(content: str) -> None:
+    from agent.llm.openai_compat import action_in_text
+
+    assert action_in_text(content) is None
