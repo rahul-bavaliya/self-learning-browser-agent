@@ -283,3 +283,20 @@ Fixes:
 - `answer` <-> `text` aliases on answer and finish.
 - After an answer, history says "answer recorded; call finish"; the same answer twice in a
   row ends the run with that answer. The checker still decides; end_reason records it.
+
+## Third eval pass — 2026-11-04
+
+Same command and model: **83% (10/12) verified — all four exit gates pass on a single pass.**
+
+| Pass | Verified | Change |
+|---|---|---|
+| 1 | 25% (3/12) | — |
+| 2 | 42% (5/12) | tolerant parsing |
+| 3 | 83% (10/12) | text-form calls, answer/text alias, repeated-answer end |
+
+Failures: form-02 (finish call lost: quotes inside the model's `<|"|>` strings broke the
+text parser; fixed and tested with the exact reply), multi-01 (genuine planning error:
+wrong second item, answered 49.00 instead of 33.49). ext-02 and ext-03 ended by repeating
+their answer (recorded in end_reason; checker verified both).
+
+**Harness frozen for the baseline after this commit.** Next: 3-repeat baseline.

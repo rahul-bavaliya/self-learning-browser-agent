@@ -247,10 +247,13 @@ def action_in_text(text: str) -> dict[str, Any] | None:
     """
     if not text:
         return None
-    text = text.replace('<|"|>', '"')
+    # <|"|>...<|"|> is the model's own string quoting; the text inside may contain
+    # ordinary quotes (e.g. 'the page is "My account"'), so re-encode it as JSON.
+    text = _QUOTE_TOKEN_RE.sub(lambda m: json.dumps(m.group(1)), text)
     return _json_in_text(text) or _call_in_text(text)
 
 
+_QUOTE_TOKEN_RE = re.compile(r'<\|"\|>(.*?)<\|"\|>', re.DOTALL)
 _CALL_RE = re.compile(r"\bact\s*([({])")
 _BARE_KEY_RE = re.compile(r"([{,]\s*)([A-Za-z_]\w*)\s*:")
 _LITERALS = {"true": True, "false": False, "null": None, "none": None}

@@ -432,3 +432,19 @@ def test_text_without_a_call_is_not_an_action(content: str) -> None:
     from agent.llm.openai_compat import action_in_text
 
     assert action_in_text(content) is None
+
+
+def test_quote_tokens_with_ordinary_quotes_inside() -> None:
+    from agent.llm.openai_compat import action_in_text
+
+    # form-02, 2026-11-04: the reasoning itself contains "My account" in double quotes.
+    content = (
+        'act{reasoning:<|"|>The goal was to log in and then open My account. The current page '
+        'is "My account", so the goal is achieved.<|"|>,type:<|"|>finish<|"|>,success:true}'
+    )
+    assert action_in_text(content) == {
+        "reasoning": "The goal was to log in and then open My account. The current page is "
+        '"My account", so the goal is achieved.',
+        "type": "finish",
+        "success": True,
+    }
